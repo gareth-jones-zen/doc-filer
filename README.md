@@ -79,15 +79,27 @@ to remember to run it.
 - **One run at a time per config.** A one-off run waits for a watch run to finish, and the
   other way round, through a named mutex that Windows releases if the process dies.
 
-To start it at logon, use a Task Scheduler task that runs it under the headless console host,
-so no window ever appears:
+### Starting it at logon: `autostart`
 
-```
-conhost.exe --headless powershell -NoProfile -ExecutionPolicy Bypass -File C:\path\to\doc-filer\run.ps1 --watch --config C:\path\to\doc-filer.json --log C:\path\to\doc-filer.log
+```powershell
+./run.ps1 autostart on --config C:\path\to\doc-filer.json   # watch at every logon, and start it now
+./run.ps1 autostart status
+./run.ps1 autostart off
 ```
 
-**Not `powershell -WindowStyle Hidden`.** That hides PowerShell's own window only after it has
-opened, and a window can still appear; closing it stops the watcher (exit code `0xC000013A`).
+The same shape as teams-transcripts' `autostart`.
+- **`on` registers a Task Scheduler task, `doc-filer watch`,** that runs as you, only while you're logged on, and needs no admin rights.
+- **The task:**
+  - catches up a missed start;
+  - restarts the watcher if it crashes (three times, five minutes apart);
+  - is never stopped for running too long.
+- **`--log <path>`** sets the log; the default is `%LOCALAPPDATA%\doc-filer\doc-filer.log`. Running `on` again with another config replaces the task.
+- **`status`** shows whether the watcher is running, when it last started, and how it last ended.
+- **`off`** stops it and removes the task.
+
+**It runs under the headless console host (`conhost.exe --headless`), so no window ever appears.** It isn't run with `powershell -WindowStyle Hidden`, which hides PowerShell's window only after it has opened. A window can still appear, and **closing it stops the watcher.** `status` reports that case as "stopped: its console window was closed".
+
+**One watcher per config.** Don't also start one some other way.
 
 ## The after-run hook
 

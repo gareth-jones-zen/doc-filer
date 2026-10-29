@@ -6,6 +6,9 @@
     ./run.ps1 --config C:\path\to\doc-filer.json
     ./run.ps1 --config C:\path\to\doc-filer.json --dry-run
     ./run.ps1 --config C:\path\to\doc-filer.json --watch --log C:\path\to\doc-filer.log
+    ./run.ps1 autostart on --config C:\path\to\doc-filer.json     # watch at every logon, and start now
+    ./run.ps1 autostart status
+    ./run.ps1 autostart off
 #>
 [CmdletBinding()]
 param(
@@ -16,6 +19,92 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $project = Join-Path $PSScriptRoot 'src\DocFiler.csproj'
+
+# ---- autostart: watch mode at every logon, through Task Scheduler --------------------------
+# The same shape as teams-transcripts' autostart: a task that runs as you, only while you're
+# logged on, needs no admin rights, catches up a missed start, restarts after a crash, and is
+# never stopped for running too long. It runs under the headless console host, so no window
+# appears. A window that can be closed is a watcher that can be stopped by accident: that
+# happened on 29 Oct 2026 under "powershell -WindowStyle Hidden".
+$TaskName = 'doc-filer watch'
+
+function Get-Option([string[]]$list, [string]$name) {
+    $i = [array]::IndexOf($list, $name)
+    if ($i -ge 0 -and $i + 1 -lt $list.Count) { return $list[$i + 1] }
+    return $null
+}
+
+function Resolve-Config([string[]]$list) {
+    $config = Get-Option $list '--config'
+    if (-not $config) { $config = $env:DOC_FILER_CONFIG }
+    if (-not $config -and (Test-Path 'doc-filer.json')) { $config = 'doc-filer.json' }
+    if (-not $config) { throw 'autostart on needs a config: pass --config <path>, set DOC_FILER_CONFIG, or run from a folder holding doc-filer.json.' }
+    if (-not (Test-Path $config)) { throw "Config not found: $config" }
+    return (Resolve-Path $config).Path
+}
+
+function Describe-Result($code) {
+    switch ($code) {
+        0          { 'ok' }
+        267009     { 'running' }
+        267011     { 'never run' }
+        3221225786 { 'stopped: its console window was closed (0xC000013A)' }
+        default    { 'exit ' + $code }
+    }
+}
+
+if ($Arguments.Count -ge 1 -and $Arguments[0] -eq 'autostart') {
+    $verb = if ($Arguments.Count -ge 2) { $Arguments[1] } else { 'status' }
+    $rest = if ($Arguments.Count -gt 2) { $Arguments[2..($Arguments.Count - 1)] } else { @() }
+    $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+
+    switch ($verb) {
+        'on' {
+            $config = Resolve-Config $rest
+            $log = Get-Option $rest '--log'
+            if (-not $log) { $log = Join-Path $env:LOCALAPPDATA 'doc-filer\doc-filer.log' }
+            $log = [IO.Path]::GetFullPath($log)
+            $me = "$env:USERDOMAIN\$env:USERNAME"
+            $script = Join-Path $PSScriptRoot 'run.ps1'
+            $argsLine = "--headless powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$script`" --watch --config `"$config`" --log `"$log`""
+            $action = New-ScheduledTaskAction -Execute 'conhost.exe' -Argument $argsLine -WorkingDirectory (Split-Path $config)
+            $trigger = New-ScheduledTaskTrigger -AtLogOn -User $me
+            $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
+                -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 5) -MultipleInstances IgnoreNew
+            $principal = New-ScheduledTaskPrincipal -UserId $me -LogonType Interactive -RunLevel Limited
+            if ($task) { Stop-ScheduledTask -TaskName $TaskName }
+            Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal `
+                -Description "Files whatever lands in the staging folder (doc-filer --watch). Config: $config. Log: $log" -Force | Out-Null
+            Start-ScheduledTask -TaskName $TaskName
+            Write-Output "Autostart is on: '$TaskName' runs at every logon, and has started now."
+            Write-Output "  config  $config"
+            Write-Output "  log     $log"
+            exit 0
+        }
+        'off' {
+            if (-not $task) { Write-Output 'Autostart is already off.'; exit 0 }
+            Stop-ScheduledTask -TaskName $TaskName
+            Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+            Write-Output "Autostart is off: '$TaskName' is stopped and removed."
+            exit 0
+        }
+        'status' {
+            if (-not $task) { Write-Output 'Autostart is off.'; exit 0 }
+            $info = Get-ScheduledTaskInfo -TaskName $TaskName
+            $running = @(Get-Process doc-filer -ErrorAction SilentlyContinue).Count -gt 0
+            Write-Output "Autostart is on ('$TaskName')."
+            Write-Output "  state        $($task.State)$(if ($task.State -ne 'Running' -and -not $running) { ' (the watcher is not running)' })"
+            Write-Output "  last run     $(if ($info.LastTaskResult -eq 267011) { 'never' } else { $info.LastRunTime })"
+            Write-Output "  last result  $(Describe-Result $info.LastTaskResult)"
+            Write-Output "  command      $($task.Actions[0].Execute) $($task.Actions[0].Arguments)"
+            exit 0
+        }
+        default {
+            Write-Error "Unknown autostart command '$verb'. Use: autostart on [--config <path>] [--log <path>] | off | status"
+            exit 2
+        }
+    }
+}
 
 # pandoc ships with the tool, zipped (pandoc.exe is over GitHub's 100MB file limit), and is
 # unpacked here on first use, so nobody has to install it. A config that names its own
