@@ -17,7 +17,8 @@ public sealed class Watcher(string configPath)
     private static readonly TimeSpan LockWait = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan Heartbeat = TimeSpan.FromHours(1);
 
-    private readonly HashSet<string> _knownUnmatched = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _knownUnmatched = new(StringComparer.OrdinalIgnoreCase);
+    private string _unmatchedState = "";
 
     public int Run()
     {
@@ -26,9 +27,16 @@ public sealed class Watcher(string configPath)
         Log.Info($"Watching {config.SourceRoot} for {config.ResolvedRepoRoot} " +
                  $"(every {config.Watch.CheckEverySeconds}s, settle {config.Watch.SettleSeconds}s; config {config.ConfigPath})");
 
-        // Files no rule matches when the watch starts are reported once, as a batch; after
-        // that only new arrivals are. Anything saved while the watcher was down is caught by
-        // the first run, below.
+        // Each unmatched file is reported once, ever, not once per start (which would be every
+        // logon), so what has been reported is kept between runs. Anything saved while the
+        // watcher was down is caught by the first run, below.
+        _unmatchedState = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "doc-filer", $"unmatched-{RunLock.Key(config.ConfigPath)}.txt");
+        if (File.Exists(_unmatchedState))
+        {
+            _knownUnmatched = new HashSet<string>(File.ReadAllLines(_unmatchedState), StringComparer.OrdinalIgnoreCase);
+        }
+
         RunOnce(config);
         var snapshot = Snapshot(config);
         DateTime? changedAt = null;
@@ -91,9 +99,15 @@ public sealed class Watcher(string configPath)
     private void RunOnce(FilerConfig config)
     {
         var unmatched = DirectoryProcessor.FindUnmatched(config);
+        var before = _knownUnmatched.Count;
         var fresh = unmatched.Where(file => _knownUnmatched.Add(file)).ToList();
         // Forget files that have gone, so one saved again under the same name is reported again.
         _knownUnmatched.IntersectWith(unmatched);
+        if (fresh.Count > 0 || _knownUnmatched.Count != before)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_unmatchedState)!);
+            File.WriteAllLines(_unmatchedState, _knownUnmatched.Order());
+        }
 
         foreach (var file in fresh)
         {

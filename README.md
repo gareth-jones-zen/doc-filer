@@ -60,7 +60,8 @@ to remember to run it.
 - **It waits for the folders to stop changing** (`settleSeconds`, default 60) before a run,
   so a file still syncing isn't caught half-written.
 - **It runs the after-run hook** whenever something was written, failed, or a *new* file
-  matches no rule.
+  matches no rule. Each unmatched file is reported once, not on every start; what's been
+  reported is kept in `%LOCALAPPDATA%\doc-filer\unmatched-<key>.txt`.
 - **Config edits take effect without a restart.** A broken edit is logged, and the old
   config stays in use.
 - **It logs `alive` once an hour**, so a silent log means a stuck watcher, not a quiet day.

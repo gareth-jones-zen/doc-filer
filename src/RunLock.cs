@@ -15,10 +15,13 @@ public sealed class RunLock : IDisposable
 
     public RunLock(string configPath)
     {
-        var key = Convert.ToHexString(
-            SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(configPath).ToLowerInvariant())))[..16];
-        _mutex = new Mutex(false, $@"Local\doc-filer-{key}");
+        _mutex = new Mutex(false, $@"Local\doc-filer-{Key(configPath)}");
     }
+
+    /// <summary>A short, stable key for a config file, the same however its path is spelt.</summary>
+    public static string Key(string configPath) =>
+        Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(configPath).ToLowerInvariant())))[..16];
 
     public bool Acquire(TimeSpan wait)
     {
