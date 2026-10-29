@@ -1,2 +1,6 @@
 src/bin/
 src/obj/
+
+# pandoc as unpacked by run.ps1 from the zip beside it; only the zip is committed.
+vendor/*/
+vendor/*.unpacking/

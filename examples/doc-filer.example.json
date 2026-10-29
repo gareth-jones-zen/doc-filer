@@ -2,7 +2,7 @@
   // An example config. Keep the real one with the repo it serves.
   "sourceRoot": "C:\\Users\\you\\OneDrive\\Staging",
   "repoRoot": "..",
-  "pandoc": "",                       // empty: pandoc on the PATH
+  "pandoc": "",                       // empty: the copy bundled with doc-filer
 
   "afterRun": ["python", "tools/doc_filer_hook.py"],
   "watch": { "checkEverySeconds": 30, "settleSeconds": 60 },

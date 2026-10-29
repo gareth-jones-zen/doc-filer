@@ -20,8 +20,17 @@ Until October 2026 it was `tools/console-runner` inside the repo it served.
 ./run.ps1 --config C:\path\to\doc-filer.json --watch --log C:\path\to\doc-filer.log
 ```
 
-Needs the **.NET 10 SDK** and **pandoc**. `run.ps1` is a thin wrapper over `dotnet run`, so
-the first run compiles and later runs are quick. Without `--config` it uses
+Needs the **.NET 10 SDK** and nothing else. `run.ps1` is a thin wrapper over `dotnet run`, so
+the first run compiles and later runs are quick.
+
+**pandoc comes with the tool.** `vendor/pandoc-3.9-windows-x86_64.zip` holds pandoc 3.9 for
+Windows. It's zipped because `pandoc.exe` (221MB) is over GitHub's 100MB file limit, and the
+zip is about 40MB. `run.ps1` unpacks it into `vendor/` on first use (git-ignored) and the tool
+uses it, unless the config's `pandoc` names another copy. **To upgrade:** zip the new release's
+Windows files the same way, named `pandoc-<version>-windows-x86_64.zip`, and remove the old
+zip; the newest by name is used. pandoc is GPL-2.0-or-later, by John MacFarlane and
+contributors: its licence travels inside the zip (`COPYING.rtf`, `COPYRIGHT.txt`), and the
+source is at <https://github.com/jgm/pandoc/releases/tag/3.9>. Without `--config` it uses
 `$env:DOC_FILER_CONFIG`, then `doc-filer.json` in the current folder.
 
 Exit code `0` on success, `1` if any file failed to convert, `2` on a configuration error,
@@ -70,11 +79,15 @@ to remember to run it.
 - **One run at a time per config.** A one-off run waits for a watch run to finish, and the
   other way round, through a named mutex that Windows releases if the process dies.
 
-To start it at logon, use a Task Scheduler task that runs:
+To start it at logon, use a Task Scheduler task that runs it under the headless console host,
+so no window ever appears:
 
 ```
-powershell -NoProfile -WindowStyle Hidden -File C:\path\to\doc-filer\run.ps1 --watch --config C:\path\to\doc-filer.json --log C:\path\to\doc-filer.log
+conhost.exe --headless powershell -NoProfile -ExecutionPolicy Bypass -File C:\path\to\doc-filer\run.ps1 --watch --config C:\path\to\doc-filer.json --log C:\path\to\doc-filer.log
 ```
+
+**Not `powershell -WindowStyle Hidden`.** That hides PowerShell's own window only after it has
+opened, and a window can still appear; closing it stops the watcher (exit code `0xC000013A`).
 
 ## The after-run hook
 
@@ -113,7 +126,7 @@ here. See [examples/doc-filer.example.json](examples/doc-filer.example.json).
 |---|---|
 | `sourceRoot` | The staging folder, absolute |
 | `repoRoot` | The repo, relative to the config file |
-| `pandoc` | pandoc's executable, relative to the config file. Empty means `pandoc` on the PATH |
+| `pandoc` | pandoc's executable, relative to the config file. Empty means the bundled copy (or `pandoc` on the PATH if there's none) |
 | `people` | `{ "initials", "destination" }` for each person whose files are named by initials. Each is expanded through the person templates |
 | `personConvertTemplates`, `personCopyTemplates` | Rules generated once per person, with `{initials}` and `{destination}` |
 | `convert`, `copy` | Everything else |
@@ -198,5 +211,6 @@ src/
   TranscriptPrettifier.cs   Teams markdown clean-up
   SelfTest.cs               routing checks from the config
 filters/                    shipped pandoc Lua filters
+vendor/                     pandoc, zipped; unpacked here by run.ps1
 examples/                   an example config
 ```
