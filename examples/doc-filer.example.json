@@ -1,0 +1,68 @@
+{
+  // An example config. Keep the real one with the repo it serves.
+  "sourceRoot": "C:\\Users\\you\\OneDrive\\Staging",
+  "repoRoot": "..",
+  "pandoc": "",                       // empty: pandoc on the PATH
+
+  "afterRun": ["python", "tools/doc_filer_hook.py"],
+  "watch": { "checkEverySeconds": 30, "settleSeconds": 60 },
+
+  // "AB 1-2-1 2026-08-19.docx" -> team/alex-brown/one-to-ones/2026-08-19.md
+  "people": [
+    { "initials": "AB", "destination": "team/alex-brown" }
+  ],
+  "personConvertTemplates": [
+    {
+      "from": "Notes",
+      "match": "^{initials} 1-2-1 (?<date>\\d{4}-\\d{2}-\\d{2})(?<part>-part\\d+)?$",
+      "extensions": [".docx"],
+      "to": "markdown/{initials}/one-to-ones",
+      "name": "{date}{part}"
+    },
+    {
+      "from": "Notes",
+      "match": "^{initials} 1-2-1 (?<date>\\d{4}-\\d{2}-\\d{2})(?<part>-part\\d+)?$",
+      "extensions": [".txt"],
+      "to": "markdown/{initials}/one-to-ones",
+      "name": "{date}{part}",
+      "converter": "Copy"
+    }
+  ],
+  "personCopyTemplates": [
+    { "from": "Notes/markdown/{initials}/one-to-ones", "extensions": [".md"], "to": "{destination}/one-to-ones" }
+  ],
+
+  "convert": [
+    // "Jane Smith catch-up 2026-08-20.docx" -> meetings/catch-ups/jane-smith/2026-08-20.md
+    {
+      "from": "Notes",
+      "match": "^(?<label>.+?) catch-up (?<date>\\d{4}-\\d{2}-\\d{2})(?<part>-part\\d+)?$",
+      "extensions": [".docx"],
+      "to": "markdown/catch-ups/{label-slug}",
+      "name": "{date}{part}"
+    },
+    // A OneNote page saved as HTML by a Power Automate flow.
+    {
+      "from": "Weekly updates",
+      "match": "^Weekly update (?<date>\\d{4}-\\d{2}-\\d{2})$",
+      "extensions": [".html"],
+      "to": "markdown",
+      "name": "{date}",
+      "format": "gfm",
+      "inputFormat": "html",
+      "wrap": "none",
+      "luaFilter": "onenote-clean.lua",
+      "prettify": false
+    }
+  ],
+  "copy": [
+    { "from": "Notes/markdown/catch-ups", "extensions": [".md"], "to": "meetings/catch-ups", "recurse": true },
+    { "from": "Weekly updates/markdown", "extensions": [".md"], "to": "comms/weekly-updates" }
+  ],
+
+  "selfTest": [
+    { "from": "Notes", "file": "AB 1-2-1 2026-08-19-part1.docx", "folder": "markdown/AB/one-to-ones", "name": "2026-08-19-part1.md",
+      "why": "Split recordings keep their suffix" },
+    { "from": "Notes", "file": "Jane Smith catch-up 2026-08-20.docx", "folder": "markdown/catch-ups/jane-smith", "name": "2026-08-20.md" }
+  ]
+}
