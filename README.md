@@ -23,14 +23,19 @@ Until October 2026 it was `tools/console-runner` inside the repo it served.
 Needs the **.NET 10 SDK** and nothing else. `run.ps1` is a thin wrapper over `dotnet run`, so
 the first run compiles and later runs are quick.
 
-**pandoc comes with the tool.** `vendor/pandoc-3.9-windows-x86_64.zip` holds pandoc 3.9 for
-Windows. It's zipped because `pandoc.exe` (221MB) is over GitHub's 100MB file limit, and the
-zip is about 40MB. `run.ps1` unpacks it into `vendor/` on first use (git-ignored) and the tool
-uses it, unless the config's `pandoc` names another copy. **To upgrade:** zip the new release's
-Windows files the same way, named `pandoc-<version>-windows-x86_64.zip`, and remove the old
-zip; the newest by name is used. pandoc is GPL-2.0-or-later, by John MacFarlane and
-contributors: its licence travels inside the zip (`COPYING.rtf`, `COPYRIGHT.txt`), and the
-source is at <https://github.com/jgm/pandoc/releases/tag/3.9>. Without `--config` it uses
+**pandoc comes with the tool.** `vendor/pandoc-3.13-windows-x86_64.zip` is pandoc's official
+Windows release, unchanged. It stays zipped because `pandoc.exe` (about 240MB) is over GitHub's
+100MB file limit, and the zip is 43MB. `run.ps1` unpacks it into `vendor/` on first use
+(git-ignored) and the tool uses it, unless the config's `pandoc` names another copy.
+
+**To upgrade:**
+1. Download the release's `pandoc-<version>-windows-x86_64.zip`, and check it against the SHA-256 digest GitHub shows for the asset.
+2. **Compare the old and new versions' output on real files of every kind you convert** (transcripts, forms with `flatten-tables.lua`, OneNote pages). A changed output rewrites every file the next time it's reprocessed.
+3. Put the zip in `vendor/` and remove the old one. The newest by name is used, so mind `3.9` against `3.13`: keep only one zip.
+
+**3.9 → 3.13 (29 Oct 2026):** 12 real files of every kind came out byte-for-byte identical.
+
+pandoc is GPL-2.0-or-later, by John MacFarlane and contributors. Its licence travels inside the zip (`COPYING.rtf`, `COPYRIGHT.txt`), and the source is at <https://github.com/jgm/pandoc/releases/tag/3.13>. Without `--config` it uses
 `$env:DOC_FILER_CONFIG`, then `doc-filer.json` in the current folder.
 
 Exit code `0` on success, `1` if any file failed to convert, `2` on a configuration error,

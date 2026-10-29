@@ -113,15 +113,16 @@ $pandocZip = Get-ChildItem (Join-Path $PSScriptRoot 'vendor') -Filter 'pandoc-*-
     Sort-Object Name | Select-Object -Last 1
 if ($pandocZip) {
     $pandocDir = Join-Path $PSScriptRoot ('vendor\' + $pandocZip.BaseName)
-    $pandocExe = Join-Path $pandocDir 'pandoc.exe'
-    if (-not (Test-Path $pandocExe)) {
+    if (-not (Test-Path $pandocDir)) {
         # Unpack beside the target and rename, so an interrupted unpack never looks complete.
         $staging = "$pandocDir.unpacking"
         if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
         Expand-Archive -Path $pandocZip.FullName -DestinationPath $staging
         Rename-Item $staging (Split-Path $pandocDir -Leaf)
     }
-    $env:DOC_FILER_PANDOC = $pandocExe
+    # pandoc's official zip puts its files in a pandoc-<version>\ subfolder; find the exe wherever it is.
+    $pandocExe = Get-ChildItem $pandocDir -Recurse -Filter 'pandoc.exe' | Select-Object -First 1
+    if ($pandocExe) { $env:DOC_FILER_PANDOC = $pandocExe.FullName }
 }
 
 if ($Arguments -contains '--watch') {
