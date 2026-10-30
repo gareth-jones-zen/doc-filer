@@ -18,6 +18,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# With no arguments, $Arguments is $null, and splatting it passes one empty argument along.
+$Arguments = @($Arguments | Where-Object { $_ })
+
 $project = Join-Path $PSScriptRoot 'src\DocFiler.csproj'
 
 # ---- autostart: watch mode at every logon, through Task Scheduler --------------------------

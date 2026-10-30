@@ -41,6 +41,8 @@ public sealed class Watcher(string configPath)
         var snapshot = Snapshot(config);
         DateTime? changedAt = null;
         var beat = DateTime.Now;
+        // Archiving depends on the date, not on files arriving, so a new day gets its own run.
+        var ranOn = DateTime.Today;
 
         while (true)
         {
@@ -72,6 +74,15 @@ public sealed class Watcher(string configPath)
                     }
                 }
 
+                if (config.Archive.Count > 0 && DateTime.Today != ranOn)
+                {
+                    ranOn = DateTime.Today;
+                    Log.Info("New day: running the archive rules");
+                    RunOnce(config);
+                    snapshot = Snapshot(config);
+                    continue;
+                }
+
                 var current = Snapshot(config);
                 if (!SameSnapshot(current, snapshot))
                 {
@@ -88,6 +99,7 @@ public sealed class Watcher(string configPath)
                 changedAt = null;
                 RunOnce(config);
                 snapshot = Snapshot(config);
+                ranOn = DateTime.Today;
             }
             catch (Exception exception)
             {

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 
 namespace DocFiler;
 
@@ -15,13 +16,19 @@ public sealed class ProcessResult
     /// <summary>Staging files that failed to convert.</summary>
     public List<string> FailedFiles { get; } = [];
 
+    /// <summary>Repo files moved into an archive, relative to the repo root.</summary>
+    public List<MovedFile> Moved { get; } = [];
+
     public int Failed => FailedFiles.Count;
 
     public override string ToString() =>
         Planned > 0
             ? $"{Planned} would be processed, {Skipped} unchanged"
-            : $"{Converted} converted, {Copied} copied, {Skipped} unchanged, {Failed} failed";
+            : $"{Converted} converted, {Copied} copied, {Skipped} unchanged, {Failed} failed" +
+              (Moved.Count > 0 ? $", {Moved.Count} archived" : "");
 }
+
+public sealed record MovedFile(string From, string To);
 
 public sealed class DirectoryProcessor(FilerConfig config, bool dryRun)
 {
@@ -44,7 +51,73 @@ public sealed class DirectoryProcessor(FilerConfig config, bool dryRun)
             RunCopyRule(rule);
         }
 
+        // Then tidy: dated files past their keep window move into their folder's archive.
+        foreach (var rule in config.Archive)
+        {
+            RunArchiveRule(rule);
+        }
+
         return _result;
+    }
+
+    private void RunArchiveRule(ArchiveRule rule)
+    {
+        var folder = Path.GetFullPath(Path.Combine(config.ResolvedRepoRoot, rule.Folder));
+        if (!Directory.Exists(folder))
+        {
+            Log.Warn($"Archive folder not found: {folder}");
+            return;
+        }
+
+        var cutoff = DateOnly.FromDateTime(DateTime.Today).AddDays(-rule.KeepDays);
+        var pattern = new Regex(rule.Match, RegexOptions.IgnoreCase);
+
+        // Top level only, so files already archived are left alone.
+        foreach (var file in Directory.GetFiles(folder))
+        {
+            if (!MatchesExtension(file, rule.Extensions))
+            {
+                continue;
+            }
+
+            var name = Path.GetFileName(file);
+            var match = pattern.Match(Path.GetFileNameWithoutExtension(file));
+            if (!match.Success || !DateOnly.TryParseExact(match.Groups["date"].Value, "yyyy-MM-dd", out var date))
+            {
+                Log.Detail($"Not archiving {name}: no date in its name");
+                continue;
+            }
+
+            if (date >= cutoff)
+            {
+                continue;
+            }
+
+            var destinationFolder = Path.GetFullPath(Path.Combine(folder, rule.To
+                .Replace("{yyyy}", date.Year.ToString("0000"))
+                .Replace("{mm}", date.Month.ToString("00"))
+                .Replace("{dd}", date.Day.ToString("00"))));
+            var destination = Path.Combine(destinationFolder, name);
+            if (File.Exists(destination))
+            {
+                Log.Warn($"Not archiving {name}: {destination} already exists");
+                continue;
+            }
+
+            if (dryRun)
+            {
+                Log.Plan($"archive {file} -> {destination}");
+                _result.Planned++;
+                continue;
+            }
+
+            Directory.CreateDirectory(destinationFolder);
+            File.Move(file, destination);
+            var from = Path.GetRelativePath(config.ResolvedRepoRoot, file).Replace('\\', '/');
+            var to = Path.GetRelativePath(config.ResolvedRepoRoot, destination).Replace('\\', '/');
+            Log.Info($"Archived {from} -> {to}");
+            _result.Moved.Add(new MovedFile(from, to));
+        }
     }
 
     /// <summary>

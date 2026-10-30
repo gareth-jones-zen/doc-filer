@@ -46,6 +46,12 @@ public sealed class FilerConfig
 
     public WatchSettings Watch { get; set; } = new();
 
+    /// <summary>
+    /// Folders in the repo whose dated files move into an archive once they're old enough, so the
+    /// folder holds only what's current. Runs on every run, and once a day in watch mode.
+    /// </summary>
+    public List<ArchiveRule> Archive { get; set; } = [];
+
     /// <summary>Filename routing checks for --self-test.</summary>
     public List<SelfTestCase> SelfTest { get; set; } = [];
 
@@ -163,6 +169,25 @@ public sealed class FilerConfig
         foreach (var rule in AllConvertRules.Where(rule => string.IsNullOrWhiteSpace(rule.Match)))
         {
             problems.Add($"convert rule for '{rule.From}' has no match pattern.");
+        }
+
+        foreach (var rule in Archive)
+        {
+            if (string.IsNullOrWhiteSpace(rule.Folder))
+            {
+                problems.Add("an archive rule has no folder.");
+            }
+            try
+            {
+                if (!new System.Text.RegularExpressions.Regex(rule.Match).GetGroupNames().Contains("date"))
+                {
+                    problems.Add($"archive rule for '{rule.Folder}': match has no (?<date>) group.");
+                }
+            }
+            catch (ArgumentException exception)
+            {
+                problems.Add($"archive rule for '{rule.Folder}': match isn't a valid regex ({exception.Message}).");
+            }
         }
 
         foreach (var filter in AllConvertRules.Select(rule => rule.LuaFilter)
@@ -296,6 +321,28 @@ public sealed class CopyRule
         clone.Extensions = [.. Extensions];
         return clone;
     }
+}
+
+/// <summary>
+/// Moves files dated more than <see cref="KeepDays"/> ago out of a repo folder into an archive under
+/// it. Only the folder's top level is looked at, so files already archived stay put. A file with no
+/// date in its name is left alone, and nothing is ever overwritten or deleted.
+/// </summary>
+public sealed class ArchiveRule
+{
+    /// <summary>The folder to keep tidy, relative to the repo root.</summary>
+    public string Folder { get; set; } = "";
+
+    /// <summary>Files dated within this many days stay where they are.</summary>
+    public int KeepDays { get; set; } = 14;
+
+    public List<string> Extensions { get; set; } = [".md"];
+
+    /// <summary>Regex over the filename without its extension; (?&lt;date&gt;) must be yyyy-mm-dd.</summary>
+    public string Match { get; set; } = @"^(?<date>\d{4}-\d{2}-\d{2})";
+
+    /// <summary>Where a file goes, relative to <see cref="Folder"/>. Supports {yyyy}, {mm} and {dd}.</summary>
+    public string To { get; set; } = "archive/{yyyy}-{mm}";
 }
 
 public sealed class WatchSettings

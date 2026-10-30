@@ -25,6 +25,7 @@ public static class AfterRunHook
             config = config.ConfigPath,
             repoRoot = config.ResolvedRepoRoot,
             written = result.Written,
+            moved = result.Moved.Select(move => new { from = move.From, to = move.To }),
             failed = result.FailedFiles,
             unmatched,
             summary = result.ToString()

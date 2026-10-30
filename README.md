@@ -106,6 +106,25 @@ The same shape as teams-transcripts' `autostart`.
 
 **One watcher per config.** Don't also start one some other way.
 
+## Archiving old files
+
+A folder that collects a file a day, such as meeting preps, is only useful if it holds what's
+current. An `archive` rule moves dated files out of a repo folder once they're older than a keep
+window, into an archive beside them:
+
+```jsonc
+"archive": [
+  { "folder": "meetings/notes", "keepDays": 14, "to": "archive/{yyyy}-{mm}" }
+]
+```
+
+- **`folder`** is relative to the repo root. Only its top level is looked at, so files already archived stay put.
+- **The date comes from the filename:** `match` is a regex over the name without its extension, with a `(?<date>)` group in `yyyy-mm-dd`. The default reads a leading date. A file with no date is left alone.
+- **`keepDays`** defaults to 14, and **`extensions`** to `[".md"]`. **`to`** is relative to `folder`, with `{yyyy}`, `{mm}` and `{dd}`.
+- **It never overwrites or deletes.** A file whose destination already exists stays where it is, with a warning.
+- **It runs on every run, and in watch mode once a day** when the date changes, so it needs no files to arrive.
+- **Moves go to the after-run hook** as `moved`, so the repo can commit them. Git sees them as renames, so `git log --follow` keeps the history.
+
 ## The after-run hook
 
 The tool knows nothing about git, or about what the repo wants done with new files. A
@@ -116,14 +135,15 @@ config's `afterRun` names a command that does:
 ```
 
 It runs from the repo root, in watch mode always and after a one-off run only with
-`--hook`, whenever the run wrote into the repo, failed a file, or found a new unmatched
-file. It gets a JSON report on stdin:
+`--hook`, whenever the run wrote into the repo, archived a file, failed a file, or found a
+new unmatched file. It gets a JSON report on stdin:
 
 ```json
 {
   "config": "C:\\…\\doc-filer.json",
   "repoRoot": "C:\\…\\my-repo",
   "written": ["meetings/catch-ups/jane-smith/2026-10-20.md"],
+  "moved": [{ "from": "meetings/notes/2026-10-01-prep.md", "to": "meetings/notes/archive/2026-10/2026-10-01-prep.md" }],
   "failed": ["C:\\…\\Staging\\Notes\\Broken file 2026-10-20.docx"],
   "unmatched": ["C:\\…\\Staging\\Notes\\Jane Smith catch up 2026-10-21.docx"],
   "summary": "1 converted, 1 copied, 680 unchanged, 1 failed"
@@ -149,6 +169,7 @@ here. See [examples/doc-filer.example.json](examples/doc-filer.example.json).
 | `convert`, `copy` | Everything else |
 | `afterRun` | The hook command, above |
 | `watch` | `checkEverySeconds`, `settleSeconds` |
+| `archive` | Folders whose old dated files move into an archive (above) |
 | `selfTest` | Routing checks, below |
 
 **Rules are all-match, not first-match.** A filename two convert rules match is converted

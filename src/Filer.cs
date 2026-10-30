@@ -17,7 +17,7 @@ public static class Filer
         var result = new DirectoryProcessor(config, dryRun).Run();
         Log.Info($"Processing complete: {result}");
 
-        if (hook && !dryRun && (result.Written.Count > 0 || result.Failed > 0 || newUnmatched.Count > 0))
+        if (hook && !dryRun && (result.Written.Count > 0 || result.Moved.Count > 0 || result.Failed > 0 || newUnmatched.Count > 0))
         {
             AfterRunHook.Run(config, result, newUnmatched);
         }
