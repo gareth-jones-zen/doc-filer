@@ -46,6 +46,19 @@ function Resolve-Config([string[]]$list) {
     return (Resolve-Path $config).Path
 }
 
+# Stopping the scheduled task ends only the console host it started, not the watcher under it, so a
+# restart used to leave the old watcher running alongside the new one, on old code (found 30 Oct 2026:
+# three running). This stops any doc-filer watcher on the same config, wherever it was started from.
+function Stop-Watcher([string]$config) {
+    $wanted = [IO.Path]::GetFullPath($config)
+    Get-CimInstance Win32_Process -Filter "Name='doc-filer.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -match '--watch' -and $_.CommandLine.IndexOf($wanted, [StringComparison]::OrdinalIgnoreCase) -ge 0 } |
+        ForEach-Object {
+            Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+            Wait-Process -Id $_.ProcessId -Timeout 15 -ErrorAction SilentlyContinue
+        }
+}
+
 function Describe-Result($code) {
     switch ($code) {
         0          { 'ok' }
@@ -76,6 +89,7 @@ if ($Arguments.Count -ge 1 -and $Arguments[0] -eq 'autostart') {
                 -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 5) -MultipleInstances IgnoreNew
             $principal = New-ScheduledTaskPrincipal -UserId $me -LogonType Interactive -RunLevel Limited
             if ($task) { Stop-ScheduledTask -TaskName $TaskName }
+            Stop-Watcher $config
             Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal `
                 -Description "Files whatever lands in the staging folder (doc-filer --watch). Config: $config. Log: $log" -Force | Out-Null
             Start-ScheduledTask -TaskName $TaskName
@@ -87,6 +101,7 @@ if ($Arguments.Count -ge 1 -and $Arguments[0] -eq 'autostart') {
         'off' {
             if (-not $task) { Write-Output 'Autostart is already off.'; exit 0 }
             Stop-ScheduledTask -TaskName $TaskName
+            if ($task.Actions[0].Arguments -match '--config "([^"]+)"') { Stop-Watcher $Matches[1] }
             Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
             Write-Output "Autostart is off: '$TaskName' is stopped and removed."
             exit 0
@@ -134,6 +149,10 @@ if ($Arguments -contains '--watch') {
     # build output locked). If publishing fails because the copy is already running,
     # the existing copy is used.
     $published = Join-Path $env:LOCALAPPDATA 'doc-filer\watch'
+    # One watcher per config: a new one replaces any already running, which also frees the
+    # published copy so it can be rebuilt with the current code.
+    $watchConfig = Get-Option $Arguments '--config'
+    if ($watchConfig) { Stop-Watcher $watchConfig }
     # No build servers left behind: a reused MSBuild node or compiler server outlives the
     # publish, and under a scheduled task it can surface as a stray console window.
     dotnet publish $project -c Release -o $published --nologo -v quiet -nodeReuse:false -p:UseSharedCompilation=false | Out-Null
