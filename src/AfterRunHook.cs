@@ -13,7 +13,8 @@ public static class AfterRunHook
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromMinutes(30);
 
-    public static void Run(FilerConfig config, ProcessResult result, IReadOnlyList<string> unmatched)
+    public static void Run(FilerConfig config, ProcessResult result, IReadOnlyList<string> unmatched,
+        bool reportFailures = true)
     {
         if (config.AfterRun.Count == 0)
         {
@@ -26,7 +27,7 @@ public static class AfterRunHook
             repoRoot = config.ResolvedRepoRoot,
             written = result.Written,
             moved = result.Moved.Select(move => new { from = move.From, to = move.To }),
-            failed = result.FailedFiles,
+            failed = reportFailures ? result.FailedFiles : [],
             unmatched,
             summary = result.ToString()
         }, new JsonSerializerOptions { WriteIndented = true });

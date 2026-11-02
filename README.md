@@ -72,8 +72,12 @@ to remember to run it.
   and compares sizes and modified times. Windows' file-change events aren't used: on
   OneDrive-synced folders they're unreliable.
 - **It waits for the folders to stop changing** (`settleSeconds`, default 60) before a run,
-  so a file still syncing isn't caught half-written.
-- **It runs the after-run hook** whenever something was written, failed, or a *new* file
+  so a file still syncing isn't caught half-written. A new day's run, for the archive rules,
+  waits for it too: a new day is usually a laptop waking, when OneDrive has most to catch up on.
+- **A file that fails is tried again**, every 5 minutes up to 3 times, before the after-run
+  hook hears of it. A settle period can't catch everything (a file OneDrive is still
+  downloading can look settled), and without a retry a failed file waits for its next change.
+- **It runs the after-run hook** whenever something was written, failed its last try, or a *new* file
   matches no rule. Each unmatched file is reported once, not on every start; what's been
   reported is kept in `%LOCALAPPDATA%\doc-filer\unmatched-<key>.txt`.
 - **Config edits take effect without a restart.** A broken edit is logged, and the old

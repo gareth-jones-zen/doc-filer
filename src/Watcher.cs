@@ -11,14 +11,23 @@ namespace DocFiler;
 ///
 /// The tool's own output also lives in the staging tree (the markdown intermediates), so
 /// the listing is retaken after every run: only changes made by something else count.
+///
+/// A file that fails is tried again a few minutes later, up to MaxRetries times, before the
+/// hook hears of it. A settle period can't catch everything: on 2 Nov 2026 a run on waking
+/// from sleep read a weekly update OneDrive was still downloading, and pandoc failed on it.
+/// Without a retry it would have waited for the next change to that file.
 /// </summary>
 public sealed class Watcher(string configPath)
 {
     private static readonly TimeSpan LockWait = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan Heartbeat = TimeSpan.FromHours(1);
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromMinutes(5);
+    private const int MaxRetries = 3;
 
     private HashSet<string> _knownUnmatched = new(StringComparer.OrdinalIgnoreCase);
     private string _unmatchedState = "";
+    private int _retries;
+    private DateTime? _retryAt;
 
     public int Run()
     {
@@ -42,6 +51,8 @@ public sealed class Watcher(string configPath)
         DateTime? changedAt = null;
         var beat = DateTime.Now;
         // Archiving depends on the date, not on files arriving, so a new day gets its own run.
+        // It waits for the settle like any change: a new day is usually a laptop waking, which is
+        // when OneDrive has the most to catch up on.
         var ranOn = DateTime.Today;
 
         while (true)
@@ -77,9 +88,8 @@ public sealed class Watcher(string configPath)
                 if (config.Archive.Count > 0 && DateTime.Today != ranOn)
                 {
                     ranOn = DateTime.Today;
-                    Log.Info("New day: running the archive rules");
-                    RunOnce(config);
-                    snapshot = Snapshot(config);
+                    Log.Info("New day: running the archive rules once the folders settle");
+                    changedAt ??= DateTime.Now;
                     continue;
                 }
 
@@ -88,6 +98,14 @@ public sealed class Watcher(string configPath)
                 {
                     snapshot = current;
                     changedAt = DateTime.Now;
+                    continue;
+                }
+
+                // A failed file's retry, when nothing else is waiting to run.
+                if (changedAt is null && _retryAt is not null && DateTime.Now >= _retryAt)
+                {
+                    RunOnce(config);
+                    snapshot = Snapshot(config);
                     continue;
                 }
 
@@ -126,7 +144,19 @@ public sealed class Watcher(string configPath)
             Log.Warn($"No rule matches {file}");
         }
 
-        Filer.Run(config, dryRun: false, hook: true, fresh, LockWait);
+        // The last try reports the failure; the ones before it don't, as a retry may well fix it.
+        var willRetry = _retries < MaxRetries;
+        if (Filer.Run(config, dryRun: false, hook: true, fresh, LockWait, reportFailures: !willRetry) == 1 && willRetry)
+        {
+            _retries++;
+            _retryAt = DateTime.Now + RetryDelay;
+            Log.Warn($"Trying the failed file(s) again at {_retryAt:HH:mm} (retry {_retries} of {MaxRetries})");
+        }
+        else
+        {
+            _retries = 0;
+            _retryAt = null;
+        }
     }
 
     /// <summary>Size and modified time of every file in every folder a rule reads from.</summary>
