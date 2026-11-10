@@ -18,6 +18,7 @@ Until October 2026 it was `tools/console-runner` inside the repo it served.
 ./run.ps1 --config C:\path\to\doc-filer.json --dry-run    # say what it would do, write nothing
 ./run.ps1 --config C:\path\to\doc-filer.json --self-test  # check the routing rules
 ./run.ps1 --config C:\path\to\doc-filer.json --watch --log C:\path\to\doc-filer.log
+./run.ps1 pdf notes.md                                     # markdown to PDF, below
 ```
 
 Needs the **.NET 10 SDK** and nothing else. `run.ps1` is a thin wrapper over `dotnet run`, so
