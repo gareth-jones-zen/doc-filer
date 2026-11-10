@@ -1,5 +1,11 @@
 using DocFiler;
 
+// "pdf" is its own command: it renders one markdown file and needs no config.
+if (args.Length > 0 && args[0] == "pdf" && OperatingSystem.IsWindows())
+{
+    return Pdf.Run(args[1..]);
+}
+
 var dryRun = false;
 var selfTest = false;
 var watch = false;
@@ -104,6 +110,7 @@ static void PrintUsage()
         into a repo by filename rules.
 
           run.ps1 [options]
+          run.ps1 pdf <file.md> [--css <p>] [--image-width <n>] [--output <p>]   (pdf --help for more)
 
         Options:
               --config <p>  The config file (default: $DOC_FILER_CONFIG, then ./doc-filer.json).

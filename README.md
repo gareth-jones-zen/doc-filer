@@ -222,6 +222,30 @@ the name must match exactly one rule and land where expected.
 **Run it after every config change.** A name matching two rules is the failure most likely
 to file something in the wrong place without anyone noticing.
 
+## Markdown to PDF: `pdf`
+
+```powershell
+./run.ps1 pdf notes.md                        # writes notes.pdf beside it
+./run.ps1 pdf notes.md --css my.css           # your own stylesheet
+./run.ps1 pdf deck-notes.md --image-width 1200   # shrink big images, in the PDF only
+./run.ps1 pdf notes.md --output C:\out\notes.pdf
+```
+
+pandoc (the bundled copy) turns the markdown into one self-contained HTML page, and headless
+Edge, or Chrome, prints it. No LaTeX, and no config needed. The default look is
+`styles/document.css`: A4, Segoe UI, and images fitted to the column and never split across
+pages.
+
+**Every way this went wrong before failed silently, so it checks instead of trusting:**
+- **YAML frontmatter is dropped first**; pandoc would otherwise print the title twice. A file without frontmatter is left as it is.
+- **Images are found relative to the markdown file.** If pandoc can't fetch one, the run fails and names it. Before this, a PDF with all thirteen screenshots missing passed: 89KB against 832KB.
+- **The old PDF is deleted before printing**, so one held open in a viewer fails the run rather than being passed off as new.
+- **Edge's exit code is ignored** (it's non-zero on corporate-policy noise). The file has to exist, start `%PDF-` and be over 10KB.
+
+`--image-width` is worth it on image-heavy documents: a 131-slide conference write-up was 18MB at full size. JPEGs are re-saved at quality 72; the originals aren't touched.
+
+Exit code `0` on success, `1` if the PDF couldn't be made, `2` for a bad argument.
+
 ## Shipped filters
 
 | Filter | For |
@@ -252,7 +276,9 @@ src/
   FileNameMapper.cs         filename → folder and name
   TranscriptPrettifier.cs   Teams markdown clean-up
   SelfTest.cs               routing checks from the config
+  Pdf.cs                    the pdf command
 filters/                    shipped pandoc Lua filters
+styles/                     the pdf command's default stylesheet
 vendor/                     pandoc, zipped; unpacked here by run.ps1
 examples/                   an example config
 ```

@@ -14,6 +14,12 @@
   <!-- The shipped Lua filters travel with the executable, so a config can name one by file name. -->
   <ItemGroup>
     <None Include="..\filters\*.lua" Link="filters\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\styles\*.css" Link="styles\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- The pdf command's image-width option shrinks images with GDI+. The tool is Windows-only already (Task Scheduler, Edge). -->
+  <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
   </ItemGroup>
 
 </Project>

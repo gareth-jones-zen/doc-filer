@@ -1,0 +1,22 @@
+@page { size: A4; margin: 18mm 20mm 20mm 20mm; }
+body { font-family: "Segoe UI", Calibri, Arial, sans-serif; font-size: 10.5pt; line-height: 1.5; color: #1a1a1a; max-width: none; margin: 0; }
+h1 { font-size: 19pt; line-height: 1.2; margin: 0 0 2mm 0; color: #111; }
+h2 { font-size: 13pt; margin: 7mm 0 2mm 0; padding-bottom: 1.5mm; border-bottom: 1px solid #d0d0d0; color: #111; page-break-after: avoid; }
+h3 { font-size: 11pt; margin: 5mm 0 1.5mm 0; color: #222; page-break-after: avoid; }
+p { margin: 0 0 2.5mm 0; }
+blockquote { margin: 2.5mm 0 3mm 0; padding: 0 0 0 4mm; border-left: 2.5pt solid #b8b8b8; color: #333; font-style: italic; page-break-inside: avoid; }
+blockquote p { margin: 0 0 1.5mm 0; }
+ul, ol { margin: 0 0 2.5mm 0; padding-left: 6mm; }
+li { margin-bottom: 1mm; }
+table { border-collapse: collapse; width: 100%; margin: 3mm 0; font-size: 9.5pt; page-break-inside: avoid; }
+th { text-align: left; border-bottom: 1.2pt solid #999; padding: 1.5mm 3mm 1.5mm 0; }
+td { border-bottom: 0.5pt solid #e0e0e0; padding: 1.5mm 3mm 1.5mm 0; vertical-align: top; }
+hr { border: none; border-top: 0.5pt solid #d8d8d8; margin: 6mm 0; }
+em { color: #444; }
+a { color: #16548a; text-decoration: none; }
+code { font-family: Consolas, monospace; font-size: 9.5pt; }
+/* Images fit the text column and never split across pages. Without this they
+   print at natural width and Edge clips the right-hand edge. It cut the end off
+   slide text in the XConf write-up, 24 Sep 2026. */
+img { display: block; max-width: 100%; height: auto; margin: 2mm auto 4mm auto; page-break-inside: avoid; break-inside: avoid; }
+p:has(> img) { page-break-inside: avoid; break-inside: avoid; }
