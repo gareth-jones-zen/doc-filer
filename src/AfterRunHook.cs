@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text.Json;
 
 namespace DocFiler;
 
@@ -21,16 +20,14 @@ public static class AfterRunHook
             return;
         }
 
-        var report = JsonSerializer.Serialize(new
-        {
-            config = config.ConfigPath,
-            repoRoot = config.ResolvedRepoRoot,
-            written = result.Written,
-            moved = result.Moved.Select(move => new { from = move.From, to = move.To }),
-            failed = reportFailures ? result.FailedFiles : [],
-            unmatched,
-            summary = result.ToString()
-        }, new JsonSerializerOptions { WriteIndented = true });
+        var report = Json.WriteReport(new HookReport(
+            Config: config.ConfigPath,
+            RepoRoot: config.ResolvedRepoRoot,
+            Written: result.Written,
+            Moved: [.. result.Moved.Select(move => new HookMove(move.From, move.To))],
+            Failed: reportFailures ? result.FailedFiles : [],
+            Unmatched: unmatched,
+            Summary: result.ToString()));
 
         var startInfo = new ProcessStartInfo(config.AfterRun[0])
         {

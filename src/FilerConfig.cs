@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace DocFiler;
@@ -64,18 +63,10 @@ public sealed class FilerConfig
     [JsonIgnore] public List<ConvertRule> AllConvertRules { get; private set; } = [];
     [JsonIgnore] public List<CopyRule> AllCopyRules { get; private set; } = [];
 
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true,
-        Converters = { new JsonStringEnumConverter(allowIntegerValues: false) }
-    };
-
     public static FilerConfig Load(string configPath)
     {
         var json = File.ReadAllText(configPath);
-        var config = JsonSerializer.Deserialize<FilerConfig>(json, SerializerOptions)
+        var config = Json.ReadConfig(json)
                      ?? throw new InvalidDataException($"Could not parse {configPath}");
 
         config.ConfigPath = Path.GetFullPath(configPath);
