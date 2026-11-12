@@ -35,7 +35,7 @@ public static partial class Pdf
 
     public static int Run(string[] args)
     {
-        string? source = null, css = null, output = null;
+        string? source = null, css = null, output = null, keepHtml = null;
         int? imageWidth = null;
 
         for (var i = 0; i < args.Length; i++)
@@ -44,6 +44,10 @@ public static partial class Pdf
             {
                 case "--css" when i + 1 < args.Length:
                     css = args[++i];
+                    break;
+                case "--keep-html" when i + 1 < args.Length:
+                    // Hidden: also save pandoc's intermediate HTML here, for comparing two builds.
+                    keepHtml = args[++i];
                     break;
                 case "--output" when i + 1 < args.Length:
                     output = args[++i];
@@ -93,7 +97,7 @@ public static partial class Pdf
         var temp = Directory.CreateTempSubdirectory("doc-filer-pdf-");
         try
         {
-            return Render(source, output, css, imageWidth, browser, temp.FullName);
+            return Render(source, output, css, imageWidth, browser, temp.FullName, keepHtml);
         }
         finally
         {
@@ -102,7 +106,7 @@ public static partial class Pdf
         }
     }
 
-    private static int Render(string source, string output, string css, int? imageWidth, string browser, string temp)
+    private static int Render(string source, string output, string css, int? imageWidth, string browser, string temp, string? keepHtml)
     {
         var body = StripFrontmatter(File.ReadAllText(source));
         if (string.IsNullOrWhiteSpace(body))
@@ -140,6 +144,11 @@ public static partial class Pdf
             Console.Error.WriteLine("Images or other resources couldn't be found, so the PDF would be missing them:");
             missing.ForEach(line => Console.Error.WriteLine($"  {line}"));
             return 1;
+        }
+
+        if (keepHtml is not null)
+        {
+            File.Copy(html, Path.GetFullPath(keepHtml), overwrite: true);
         }
 
         try
