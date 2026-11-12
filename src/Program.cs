@@ -8,6 +8,7 @@ if (args.Length > 0 && args[0] == "pdf" && OperatingSystem.IsWindows())
 
 var dryRun = false;
 var selfTest = false;
+var dumpConfig = false;
 var watch = false;
 var hook = false;
 string? configPath = null;
@@ -21,6 +22,10 @@ for (var i = 0; i < args.Length; i++)
             break;
         case "--self-test":
             selfTest = true;
+            break;
+        case "--dump-config":
+            // Hidden: for comparing two builds' reading of the same config. Not in the usage text.
+            dumpConfig = true;
             break;
         case "--watch":
             watch = true;
@@ -58,6 +63,11 @@ try
     }
 
     var config = FilerConfig.Load(configPath);
+
+    if (dumpConfig)
+    {
+        return ConfigDump.Run(config);
+    }
 
     if (selfTest)
     {
