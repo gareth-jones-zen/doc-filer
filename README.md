@@ -21,8 +21,9 @@ Until October 2026 it was `tools/console-runner` inside the repo it served.
 ./run.ps1 pdf notes.md                                     # markdown to PDF, below
 ```
 
-Needs the **.NET 10 SDK** and nothing else. `run.ps1` is a thin wrapper over `dotnet run`, so
-the first run compiles and later runs are quick.
+Needs the **.NET 11 SDK** (`global.json` asks for 11.0.100 or a later feature band) and nothing
+else. `run.ps1` is a thin wrapper over `dotnet run`, so the first run compiles and later runs
+are quick. It still publishes framework-dependent, so the .NET 11 runtime has to be installed.
 
 **pandoc comes with the tool.** `vendor/pandoc-3.13-windows-x86_64.zip` is pandoc's official
 Windows release, unchanged. It stays zipped because `pandoc.exe` (about 240MB) is over GitHub's
@@ -159,6 +160,9 @@ new unmatched file. It gets a JSON report on stdin:
 typical hook commits the `written` paths and nothing else, and notifies someone about
 `failed` and `unmatched`.
 
+**Anything outside ASCII is written as `\uXXXX`** (`"Zo\u00EB"`, for "Zoë"), so the hook's stdin is pure
+ASCII whatever the console's code page. Any JSON reader turns it back.
+
 ## The config
 
 All behaviour lives in one JSONC file (comments allowed), kept with the repo it serves, not
@@ -262,10 +266,28 @@ order** as the original implementation: every transcript already filed was produ
 them, so a change would show up as a diff across all of them the next time one was
 reprocessed. Add new steps at the end.
 
+## Comparing two builds
+
+Two hidden options, left out of the usage text, for checking that a change to the tool
+changed nothing it shouldn't have:
+
+- **`--dump-config`** prints the loaded config, person templates expanded, one line per value.
+  It walks every public property, so a setting the JSON reader failed to bind shows up as a
+  difference. Run it with both builds and diff the output.
+- **`pdf … --keep-html <path>`** also saves pandoc's intermediate HTML, with the images
+  embedded (shrunk, with `--image-width`). The PDF itself carries timestamps, so compare this.
+
+**.NET 10 to 11 (12 Nov 2026):** with the EA's config, `--self-test` and `--dump-config` were
+identical (54 convert and 25 copy rules after expansion), and the HTML for four documents
+(up to 131 images, shrunk) was byte-for-byte identical. The config is now read by source
+generation, not reflection, so the build is checked by the AOT analysers.
+
 ## Layout
 
 ```
 run.ps1                     entry point
+global.json                 the SDK (11.0.100, later feature bands allowed)
+Directory.Build.props       shared settings: net11.0-windows, warnings as errors, AOT analysers
 src/
   Program.cs                arguments, config discovery
   FilerConfig.cs            config model, person-template expansion, validation
@@ -273,6 +295,8 @@ src/
   Filer.cs                  one locked run, then the hook
   Watcher.cs                watch mode
   AfterRunHook.cs           runs the hook with the JSON report
+  Json.cs                   JSON by source generation: the config, the hook report
+  ConfigDump.cs             --dump-config
   RunLock.cs                one run at a time per config
   FileNameMapper.cs         filename → folder and name
   TranscriptPrettifier.cs   Teams markdown clean-up
