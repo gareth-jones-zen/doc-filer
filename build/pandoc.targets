@@ -1,0 +1,22 @@
+<Project>
+  <!-- pandoc ships with the tool: vendor/pandoc-<version>-windows-x86_64.zip, pandoc's official Windows release,
+       unchanged. It stays zipped in the repository (pandoc.exe is over GitHub's 100MB file limit), and is unpacked
+       into pandoc\ beside the exe on build and publish, where the tool finds it. Unchanged files are skipped, so
+       only the first build into a folder pays for the 240MB. -->
+  <ItemGroup>
+    <PandocZip Include="$(MSBuildThisFileDirectory)..\vendor\pandoc-*-windows-x86_64.zip" />
+  </ItemGroup>
+
+  <Target Name="CheckPandocZip" BeforeTargets="Build">
+    <Error Condition="'@(PandocZip->Count())' != '1'"
+           Text="vendor\ must hold exactly one pandoc-&lt;version&gt;-windows-x86_64.zip (found @(PandocZip->Count()))." />
+  </Target>
+
+  <Target Name="UnpackPandocForBuild" AfterTargets="Build" Condition="'$(_IsPublishing)' != 'true'">
+    <Unzip SourceFiles="@(PandocZip)" DestinationFolder="$(OutDir)pandoc" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="UnpackPandocForPublish" AfterTargets="Publish">
+    <Unzip SourceFiles="@(PandocZip)" DestinationFolder="$(PublishDir)pandoc" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

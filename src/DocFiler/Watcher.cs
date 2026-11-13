@@ -1,3 +1,5 @@
+using WinBackground;
+
 namespace DocFiler;
 
 /// <summary>
@@ -19,6 +21,9 @@ namespace DocFiler;
 /// </summary>
 public sealed class Watcher(string configPath)
 {
+    /// <summary>Exit code: another watcher already holds this config's watch lock.</summary>
+    public const int AlreadyRunning = 4;
+
     private static readonly TimeSpan LockWait = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan Heartbeat = TimeSpan.FromHours(1);
     private static readonly TimeSpan RetryDelay = TimeSpan.FromMinutes(5);
@@ -29,8 +34,26 @@ public sealed class Watcher(string configPath)
     private int _retries;
     private DateTime? _retryAt;
 
+    // Seams for the tests: the clock, the wait between passes, one filing run, and where the
+    // unmatched-file record lives. The defaults are the real ones.
+    internal Func<DateTime> Now { get; init; } = () => DateTime.Now;
+    internal Action<TimeSpan> Sleep { get; init; } = Thread.Sleep;
+    internal Func<FilerConfig, IReadOnlyList<string>, bool, int> RunFiler { get; init; } =
+        (config, fresh, reportFailures) => Filer.Run(config, dryRun: false, hook: true, fresh, LockWait, reportFailures);
+    internal string StateFolder { get; init; } =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "doc-filer");
+
     public int Run()
     {
+        // One watcher per config. A second one (a console --watch while the task's is running,
+        // or the task started twice) says so and exits, rather than both filing.
+        using var single = Locks.SingleInstance(RunLock.WatchName(configPath));
+        if (single is null)
+        {
+            Log.Warn($"Another doc-filer watcher is already running for {Path.GetFullPath(configPath)}; not starting a second.");
+            return AlreadyRunning;
+        }
+
         var config = FilerConfig.Load(configPath);
         var configStamp = File.GetLastWriteTimeUtc(configPath);
         Log.Info($"Watching {config.SourceRoot} for {config.ResolvedRepoRoot} " +
@@ -39,8 +62,7 @@ public sealed class Watcher(string configPath)
         // Each unmatched file is reported once, ever, not once per start (which would be every
         // logon), so what has been reported is kept between runs. Anything saved while the
         // watcher was down is caught by the first run, below.
-        _unmatchedState = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "doc-filer", $"unmatched-{RunLock.Key(config.ConfigPath)}.txt");
+        _unmatchedState = Path.Combine(StateFolder, $"unmatched-{RunLock.Key(config.ConfigPath)}.txt");
         if (File.Exists(_unmatchedState))
         {
             _knownUnmatched = new HashSet<string>(File.ReadAllLines(_unmatchedState), StringComparer.OrdinalIgnoreCase);
@@ -49,21 +71,21 @@ public sealed class Watcher(string configPath)
         RunOnce(config);
         var snapshot = Snapshot(config);
         DateTime? changedAt = null;
-        var beat = DateTime.Now;
+        var beat = Now();
         // Archiving depends on the date, not on files arriving, so a new day gets its own run.
         // It waits for the settle like any change: a new day is usually a laptop waking, which is
         // when OneDrive has the most to catch up on.
-        var ranOn = DateTime.Today;
+        var ranOn = Now().Date;
 
         while (true)
         {
-            Thread.Sleep(TimeSpan.FromSeconds(Math.Max(5, config.Watch.CheckEverySeconds)));
+            Sleep(TimeSpan.FromSeconds(Math.Max(5, config.Watch.CheckEverySeconds)));
             try
             {
                 // A line an hour, so a silent log means a stuck watcher rather than a quiet day.
-                if (DateTime.Now - beat >= Heartbeat)
+                if (Now() - beat >= Heartbeat)
                 {
-                    beat = DateTime.Now;
+                    beat = Now();
                     Log.Info("alive");
                 }
 
@@ -85,11 +107,11 @@ public sealed class Watcher(string configPath)
                     }
                 }
 
-                if (config.Archive.Count > 0 && DateTime.Today != ranOn)
+                if (config.Archive.Count > 0 && Now().Date != ranOn)
                 {
-                    ranOn = DateTime.Today;
+                    ranOn = Now().Date;
                     Log.Info("New day: running the archive rules once the folders settle");
-                    changedAt ??= DateTime.Now;
+                    changedAt ??= Now();
                     continue;
                 }
 
@@ -97,19 +119,19 @@ public sealed class Watcher(string configPath)
                 if (!SameSnapshot(current, snapshot))
                 {
                     snapshot = current;
-                    changedAt = DateTime.Now;
+                    changedAt = Now();
                     continue;
                 }
 
                 // A failed file's retry, when nothing else is waiting to run.
-                if (changedAt is null && _retryAt is not null && DateTime.Now >= _retryAt)
+                if (changedAt is null && _retryAt is not null && Now() >= _retryAt)
                 {
                     RunOnce(config);
                     snapshot = Snapshot(config);
                     continue;
                 }
 
-                if (changedAt is null || DateTime.Now - changedAt < TimeSpan.FromSeconds(config.Watch.SettleSeconds))
+                if (changedAt is null || Now() - changedAt < TimeSpan.FromSeconds(config.Watch.SettleSeconds))
                 {
                     continue;
                 }
@@ -117,7 +139,7 @@ public sealed class Watcher(string configPath)
                 changedAt = null;
                 RunOnce(config);
                 snapshot = Snapshot(config);
-                ranOn = DateTime.Today;
+                ranOn = Now().Date;
             }
             catch (Exception exception)
             {
@@ -146,10 +168,10 @@ public sealed class Watcher(string configPath)
 
         // The last try reports the failure; the ones before it don't, as a retry may well fix it.
         var willRetry = _retries < MaxRetries;
-        if (Filer.Run(config, dryRun: false, hook: true, fresh, LockWait, reportFailures: !willRetry) == 1 && willRetry)
+        if (RunFiler(config, fresh, !willRetry) == 1 && willRetry)
         {
             _retries++;
-            _retryAt = DateTime.Now + RetryDelay;
+            _retryAt = Now() + RetryDelay;
             Log.Warn($"Trying the failed file(s) again at {_retryAt:HH:mm} (retry {_retries} of {MaxRetries})");
         }
         else

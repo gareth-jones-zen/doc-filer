@@ -16,7 +16,7 @@ public sealed class FilerConfig
 
     /// <summary>
     /// Path to the pandoc executable, relative to the config file. Empty means the copy
-    /// bundled with the tool (vendor/, unpacked by run.ps1), or "pandoc" on the PATH.
+    /// that ships with the tool (pandoc\ beside the exe), or "pandoc" on the PATH.
     /// </summary>
     public string Pandoc { get; set; } = "";
 
@@ -72,12 +72,12 @@ public sealed class FilerConfig
         config.ConfigPath = Path.GetFullPath(configPath);
         config.ConfigDirectory = Path.GetDirectoryName(config.ConfigPath)!;
         config.ResolvedRepoRoot = Path.GetFullPath(Path.Combine(config.ConfigDirectory, config.RepoRoot));
-        // A config's own pandoc wins; otherwise the copy bundled with the tool, which run.ps1
-        // unpacks and names in DOC_FILER_PANDOC; otherwise pandoc on the PATH.
-        var bundled = Environment.GetEnvironmentVariable("DOC_FILER_PANDOC");
+        // A config's own pandoc wins; then one named in DOC_FILER_PANDOC; then the copy that
+        // ships with the tool, unpacked beside the exe; then pandoc on the PATH.
+        var named = Environment.GetEnvironmentVariable("DOC_FILER_PANDOC");
         config.ResolvedPandoc = !string.IsNullOrWhiteSpace(config.Pandoc)
             ? Path.GetFullPath(Path.Combine(config.ConfigDirectory, config.Pandoc))
-            : !string.IsNullOrWhiteSpace(bundled) ? bundled : "pandoc";
+            : !string.IsNullOrWhiteSpace(named) ? named : Bundled.Pandoc() ?? "pandoc";
 
         config.ExpandPersonTemplates();
         config.Validate();

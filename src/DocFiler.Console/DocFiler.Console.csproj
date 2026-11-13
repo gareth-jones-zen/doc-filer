@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>doc-filer</AssemblyName>
+    <RootNamespace>DocFiler</RootNamespace>
+    <PublishAot>true</PublishAot>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DocFiler\DocFiler.csproj" />
+  </ItemGroup>
+  <Import Project="..\..\build\pandoc.targets" />
+</Project>

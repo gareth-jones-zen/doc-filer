@@ -1,0 +1,37 @@
+name: build
+
+on:
+  push:
+    branches: [main, dotnet]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: doc-filer
+      # The shared library (WinBackground) is referenced as a sibling checkout (..\background-tools-lib).
+      - uses: actions/checkout@v5
+        with:
+          repository: gareth-jones-zen/background-tools-lib
+          path: background-tools-lib
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: doc-filer/global.json
+      - name: Build and test
+        working-directory: doc-filer
+        run: dotnet test -c Release
+      - name: Publish (Native AOT)
+        working-directory: doc-filer
+        run: |
+          dotnet publish src/DocFiler.Console -c Release -r win-x64 -o out
+          dotnet publish src/DocFiler.Background -c Release -r win-x64 -o out
+          ./out/doc-filer.exe --version
+          Get-ChildItem out/*.exe | Format-Table Name, Length
+      - uses: actions/upload-artifact@v4
+        with:
+          name: doc-filer-win-x64
+          path: doc-filer/out/*.exe

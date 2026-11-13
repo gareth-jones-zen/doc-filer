@@ -1,7 +1,5 @@
 <Project>
-  <!-- Shared by every project, as in ai-keep-awake and background-tools-lib. The tool still publishes
-       framework-dependent (run.ps1), but everything is AOT- and trim-checked now, so a later move to
-       Native AOT has nothing hidden in it. -->
+  <!-- Shared by every project. The exes are published with Native AOT, so everything is AOT- and trim-checked. -->
   <PropertyGroup>
     <TargetFramework>net11.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
@@ -9,9 +7,15 @@
     <LangVersion>latest</LangVersion>
     <InvariantGlobalization>true</InvariantGlobalization>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- A release overrides this with its tag (-p:Version=1.2.3), which is what the version option prints. -->
+    <Version>1.0.0-dev</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Authors>Gareth Jones</Authors>
     <RepositoryUrl>https://github.com/gareth-jones-zen/doc-filer</RepositoryUrl>
+    <!-- The shared library (WinBackground) comes from a checkout of background-tools-lib beside this repository:
+         ~/source/repos/background-tools-lib locally, and a second checkout in CI. -->
+    <BackgroundToolsLib Condition="'$(BackgroundToolsLib)' == ''">$(MSBuildThisFileDirectory)..\background-tools-lib\</BackgroundToolsLib>
   </PropertyGroup>
   <PropertyGroup Condition="'$(IsTestProject)' != 'true'">
     <IsAotCompatible>true</IsAotCompatible>

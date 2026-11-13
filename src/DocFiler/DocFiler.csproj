@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Everything the tool does. The two exes (DocFiler.Console, DocFiler.Background) are thin entry points over it.
+       Framework, nullable, warnings-as-errors and the AOT analysers come from Directory.Build.props. -->
+  <PropertyGroup>
+    <RootNamespace>DocFiler</RootNamespace>
+  </PropertyGroup>
+
+  <!-- The shipped Lua filters and stylesheet travel with the executables, so a config can name a filter by file name. -->
+  <ItemGroup>
+    <None Include="..\..\filters\*.lua" Link="filters\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\..\styles\*.css" Link="styles\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The pdf command's image-width option shrinks images with GDI+ (no warnings under Native AOT). -->
+    <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
+    <ProjectReference Include="$(BackgroundToolsLib)src\WinBackground\WinBackground.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DocFiler.Tests" />
+  </ItemGroup>
+
+</Project>

@@ -10,8 +10,11 @@ public static class Log
 
     private static readonly Lock Gate = new();
 
+    /// <summary>The clock the timestamps come from (a seam for the tests).</summary>
+    internal static Func<DateTime> Clock { get; set; } = () => DateTime.Now;
+
     // MM, not mm: the original format string logged the minute as the month ("2026/32/26").
-    private static string Timestamp => DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss");
+    private static string Timestamp => Clock().ToString("yyyy/MM/dd HH:mm:ss");
 
     public static void Info(string message) => Write($"{Timestamp} {message}");
 

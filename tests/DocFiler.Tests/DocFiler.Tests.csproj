@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" Version="4.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <!-- The example config, for the self-test test. -->
+    <None Include="..\..\examples\doc-filer.example.json" Link="doc-filer.example.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DocFiler\DocFiler.csproj" />
+  </ItemGroup>
+</Project>

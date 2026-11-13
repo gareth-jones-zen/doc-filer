@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using WinBackground;
 
 namespace DocFiler;
 
@@ -29,48 +29,31 @@ public static class AfterRunHook
             Unmatched: unmatched,
             Summary: result.ToString()));
 
-        var startInfo = new ProcessStartInfo(config.AfterRun[0])
-        {
-            WorkingDirectory = config.ResolvedRepoRoot,
-            CreateNoWindow = true,
-            UseShellExecute = false,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        };
-        foreach (var argument in config.AfterRun.Skip(1))
-        {
-            startInfo.ArgumentList.Add(argument);
-        }
-
         Log.Info($"After-run hook: {string.Join(' ', config.AfterRun)}");
 
         try
         {
-            using var process = Process.Start(startInfo)
-                                ?? throw new InvalidOperationException("the process did not start");
-            var output = process.StandardOutput.ReadToEndAsync();
-            var errors = process.StandardError.ReadToEndAsync();
-            process.StandardInput.Write(report);
-            process.StandardInput.Close();
+            // WinBackground's Shell.Run: no window, the report on stdin (then closed), output read as UTF-8, and the
+            // hook killed with everything it started if it runs too long. It writes stdin in text mode (each LF as
+            // CRLF), and the report is already CRLF (an indented JSON writer on Windows), so it goes in as LF to
+            // arrive byte for byte as before.
+            var done = Shell.Run(config.AfterRun[0], config.AfterRun.Skip(1), Timeout,
+                stdin: report.Replace("\r\n", "\n"), workingDirectory: config.ResolvedRepoRoot, utf8: true);
 
-            if (!process.WaitForExit((int)Timeout.TotalMilliseconds))
-            {
-                process.Kill(true);
-                Log.Error($"After-run hook did not finish within {Timeout.TotalMinutes} minutes, killed");
-                return;
-            }
-
-            foreach (var line in (output.GetAwaiter().GetResult() + errors.GetAwaiter().GetResult())
+            foreach (var line in (done.StandardOutput + done.StandardError)
                          .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
                 Log.Info($"  hook: {line}");
             }
 
-            if (process.ExitCode != 0)
+            if (done.ExitCode != 0)
             {
-                Log.Error($"After-run hook exited {process.ExitCode}");
+                Log.Error($"After-run hook exited {done.ExitCode}");
             }
+        }
+        catch (ShellTimeoutException)
+        {
+            Log.Error($"After-run hook did not finish within {Timeout.TotalMinutes} minutes, killed");
         }
         catch (Exception exception)
         {

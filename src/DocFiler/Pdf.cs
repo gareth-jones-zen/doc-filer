@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using WinBackground;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -11,7 +11,7 @@ namespace DocFiler;
 /// Renders a markdown file to a styled PDF beside it: pandoc makes self-contained HTML, then
 /// headless Edge (or Chrome) prints it. No LaTeX needed.
 ///
-///   run.ps1 pdf notes.md [--css my.css] [--image-width 1200] [--output other.pdf]
+///   doc-filer pdf notes.md [--css my.css] [--image-width 1200] [--output other.pdf]
 ///
 /// It came from the EA repo's make-summary-pdf.sh (Aug to Nov 2026), and keeps the fixes for
 /// the traps that script hit, every one of which failed silently:
@@ -243,8 +243,8 @@ public static partial class Pdf
 
     private static string Pandoc()
     {
-        var bundled = Environment.GetEnvironmentVariable("DOC_FILER_PANDOC");
-        return !string.IsNullOrWhiteSpace(bundled) && File.Exists(bundled) ? bundled : "pandoc";
+        var named = Environment.GetEnvironmentVariable("DOC_FILER_PANDOC");
+        return !string.IsNullOrWhiteSpace(named) && File.Exists(named) ? named : Bundled.Pandoc() ?? "pandoc";
     }
 
     private static string? FindBrowser()
@@ -261,27 +261,17 @@ public static partial class Pdf
 
     private static (int Code, string Errors) RunProcess(string file, string[] arguments)
     {
-        var info = new ProcessStartInfo(file)
+        // WinBackground's Shell.Run: no window, stdin closed, both streams read as they come (so neither fills its
+        // pipe and blocks the process), and the program killed with everything it started if it runs too long.
+        try
         {
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-        foreach (var argument in arguments)
-        {
-            info.ArgumentList.Add(argument);
+            var done = Shell.Run(file, arguments, ProcessTimeout);
+            return (done.ExitCode, done.StandardError + done.StandardOutput);
         }
-        using var process = Process.Start(info) ?? throw new InvalidOperationException($"Couldn't start {file}");
-        // Read both streams as they come, so neither fills its pipe and blocks the process.
-        var stdout = process.StandardOutput.ReadToEndAsync();
-        var stderr = process.StandardError.ReadToEndAsync();
-        if (!process.WaitForExit(ProcessTimeout))
+        catch (ShellTimeoutException)
         {
-            process.Kill(entireProcessTree: true);
             throw new TimeoutException($"{Path.GetFileName(file)} didn't finish within {ProcessTimeout.TotalMinutes} minutes");
         }
-        return (process.ExitCode, stderr.Result + stdout.Result);
     }
 
     private static void PrintUsage()
@@ -289,7 +279,7 @@ public static partial class Pdf
         Console.WriteLine("""
             doc-filer pdf: render a markdown file to a styled PDF beside it.
 
-              run.ps1 pdf <file.md> [options]
+              doc-filer pdf <file.md> [options]
 
             Options:
                   --css <p>          Stylesheet (default: styles/document.css, shipped with the tool).
