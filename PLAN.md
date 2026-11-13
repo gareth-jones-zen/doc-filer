@@ -42,7 +42,7 @@ Old = `origin/main` (6e7b2ba, the live code), built in scratch with the .NET 10.
 | Full re-file: a copy of every staging folder the rules read (381 files), into empty scratch repos seeded with a copy of the preps folder plus synthetic archive cases | both `374 converted, 381 copied, 0 unchanged, 0 failed, 1 archived`; staging trees identical (755 files), repo trees identical (410 files; only the side-specific config differs); **hook report byte-identical** (23,147 bytes, CRLF, pure ASCII; 381 written, 1 moved); **log identical** (765 lines, timestamps stripped) except the hook's own output, below |
 | Hook output decoding | the old build decoded the hook's output in the console's code page (850 under conhost: UTF-8 `café –` became `caf├® ÔÇô`); the new one reads UTF-8 |
 | `pdf` intermediate HTML, 4 documents (up to 131 images shrunk through GDI+ under AOT) | byte-identical; PDF sizes equal; console output identical |
-| Watch mode, by hand on a scratch config with the windowless exe | first run, unmatched file reported once, a new file filed after the settle, a corrupt .docx retried 3 times 5 minutes apart and only then reported to the hook, a second watcher exits 4 |
+| Watch mode, by hand on a scratch config with the windowless exe | first run, unmatched file reported once, a new file filed after the settle, a corrupt .docx retried 5 minutes apart and reported to the hook only on its fourth try (that try came early, at the run a config edit set off, as it always has), the config edit reloaded, a second watcher exits 4 |
 
 ## Switch-over (the main session and GJ)
 
@@ -53,15 +53,15 @@ off, so don't pull it to the new `main` until step 6.
 
 1. In `~/source/repos/doc-filer-dotnet`: tag the old `main` (6e7b2ba) as **`v0.1.0`** (the rollback point: `run.ps1`
    and the framework-dependent build), and push the tag.
-2. On `dotnet`: change `build.yml` to `branches: [main]` (it builds `dotnet` too until now), commit.
-3. Fast-forward `main` to `dotnet` (`git push origin dotnet:main`), delete `dotnet` locally and on GitHub.
-4. Tag **`v1.0.0`** on `main` and push it. The release workflow tests, publishes, packages
+2. Fast-forward `main` to `dotnet` (`git push origin dotnet:main`), delete `dotnet` locally and on GitHub. CI
+   (`build.yml`) builds `main` only, so this push is the first build of the final commit; check it's green.
+3. Tag **`v1.0.0`** on `main` and push it. The release workflow tests, publishes, packages
    `doc-filer-1.0.0-win-x64.zip` (both exes, `filters\`, `styles\`, `pandoc\`, README) and attests it. The repo is
    **public** (not private, as the EA's notes say), so the provenance attestation works.
-5. Download and check: `gh release download v1.0.0 -R gareth-jones-zen/doc-filer -p '*.zip' -p SHA256SUMS.txt`,
+4. Download and check: `gh release download v1.0.0 -R gareth-jones-zen/doc-filer -p '*.zip' -p SHA256SUMS.txt`,
    `sha256sum -c` (zip line), `gh attestation verify <zip> -R gareth-jones-zen/doc-filer`.
-6. Unzip into **`%LOCALAPPDATA%\Programs\doc-filer`** (new folder; nothing is running from it yet).
-7. Smoke test, all read-only:
+5. Unzip into **`%LOCALAPPDATA%\Programs\doc-filer`** (new folder; nothing is running from it yet).
+6. Smoke test, all read-only:
    - `doc-filer.exe --version` → `1.0.0`;
    - `doc-filer.exe --self-test --config tools/doc-filer.json` → "All 32 filename cases passed." (identical to the old);
    - `doc-filer.exe --dry-run --config tools/doc-filer.json` → the same `[dry-run]` and `No rule matches` lines as the old build's dry run (strip timestamps).
@@ -127,7 +127,7 @@ release into `%LOCALAPPDATA%\Programs\doc-filer`. One-off runs no longer compile
    switch time, then `Processing complete: 0 converted, 0 copied, N unchanged, 0 failed`; **an `alive` line an hour
    later.** `tools/session-start.py`'s watcher check reads the same file and format.
 4. **A test file filed and committed by the hook:** save a small PDF as
-   `…\Archive\Admin\Briefings\Ad-hoc\doc-filer-switch-over-test.pdf`. About 90 seconds later (30 s poll, 60 s settle)
+   `<staging>\Briefings\Ad-hoc\doc-filer-switch-over-test.pdf`. About 90 seconds later (30 s poll, 60 s settle)
    the log shows it copied to `briefings/ad-hoc/`, `After-run hook: python tools/doc_filer_hook.py` and the hook's
    lines, and `git log -1` shows the hook's commit of that one path. **Then delete the staging file first, and only
    then `git rm` the repo copy and commit**, or the next run copies it back.
