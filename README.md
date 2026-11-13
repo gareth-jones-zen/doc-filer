@@ -9,40 +9,50 @@ It pairs with [teams-transcripts](https://github.com/gareth-jones-zen/teams-tran
 which fetches transcripts into the same staging folder. The two meet at the folder: the
 fetcher knows nothing about the repo, and this tool knows nothing about Teams.
 
-Until October 2026 it was `tools/console-runner` inside the repo it served.
+It runs on Windows (x64).
+
+## Install
+
+Nothing else is needed: no .NET, and no pandoc.
+
+1. Download `doc-filer-<version>-win-x64.zip` from [Releases](https://github.com/gareth-jones-zen/doc-filer/releases),
+   and check it against `SHA256SUMS.txt` beside it.
+2. Unzip it to a folder that will stay put, such as `%LOCALAPPDATA%\Programs\doc-filer`. The scheduled task
+   (`autostart`) runs the program from there.
+3. Run the commands below from that folder, or add it to your `PATH`.
+
+It holds two programs: `doc-filer.exe`, for a console, and `doc-filer-background.exe`, the same
+program with no window, which the logon task runs. Beside them are `filters\` (the shipped Lua
+filters), `styles\` (the PDF stylesheet) and `pandoc\`.
+
+**To upgrade**, run `doc-filer autostart off`, unzip the new release over the old folder, then
+`doc-filer autostart on` with the same options. The task runs the exe, so it can't be replaced while
+the watcher is running.
+
+**pandoc comes with the tool**: pandoc 3.13, the official Windows release, unchanged. pandoc is
+GPL-2.0-or-later, by John MacFarlane and contributors. Its licence travels with it
+(`pandoc\pandoc-3.13\COPYING.rtf`, `COPYRIGHT.txt`), and the source is at
+<https://github.com/jgm/pandoc/releases/tag/3.13>.
 
 ## Running it
 
 ```powershell
-./run.ps1 --config C:\path\to\doc-filer.json              # file whatever is new
-./run.ps1 --config C:\path\to\doc-filer.json --dry-run    # say what it would do, write nothing
-./run.ps1 --config C:\path\to\doc-filer.json --self-test  # check the routing rules
-./run.ps1 --config C:\path\to\doc-filer.json --watch --log C:\path\to\doc-filer.log
-./run.ps1 pdf notes.md                                     # markdown to PDF, below
+doc-filer --config C:\path\to\doc-filer.json              # file whatever is new
+doc-filer --config C:\path\to\doc-filer.json --dry-run    # say what it would do, write nothing
+doc-filer --config C:\path\to\doc-filer.json --self-test  # check the routing rules
+doc-filer --config C:\path\to\doc-filer.json --hook       # file, then run the after-run hook
+doc-filer autostart on --config C:\path\to\doc-filer.json # watch at every logon, below
+doc-filer pdf notes.md                                    # markdown to PDF, below
+doc-filer --version
 ```
 
-Needs the **.NET 11 SDK** (`global.json` asks for 11.0.100 or a later feature band) and nothing
-else. `run.ps1` is a thin wrapper over `dotnet run`, so the first run compiles and later runs
-are quick. It still publishes framework-dependent, so the .NET 11 runtime has to be installed.
-
-**pandoc comes with the tool.** `vendor/pandoc-3.13-windows-x86_64.zip` is pandoc's official
-Windows release, unchanged. It stays zipped because `pandoc.exe` (about 240MB) is over GitHub's
-100MB file limit, and the zip is 43MB. `run.ps1` unpacks it into `vendor/` on first use
-(git-ignored) and the tool uses it, unless the config's `pandoc` names another copy.
-
-**To upgrade:**
-1. Download the release's `pandoc-<version>-windows-x86_64.zip`, and check it against the SHA-256 digest GitHub shows for the asset.
-2. **Compare the old and new versions' output on real files of every kind you convert** (transcripts, forms with `flatten-tables.lua`, OneNote pages). A changed output rewrites every file the next time it's reprocessed.
-3. Put the zip in `vendor/` and remove the old one. The newest by name is used, so mind `3.9` against `3.13`: keep only one zip.
-
-**3.9 → 3.13 (29 Oct 2026):** 12 real files of every kind came out byte-for-byte identical.
-
-pandoc is GPL-2.0-or-later, by John MacFarlane and contributors. Its licence travels inside the zip (`COPYING.rtf`, `COPYRIGHT.txt`), and the source is at <https://github.com/jgm/pandoc/releases/tag/3.13>. Without `--config` it uses
-`$env:DOC_FILER_CONFIG`, then `doc-filer.json` in the current folder.
+Without `--config` it uses `$env:DOC_FILER_CONFIG`, then `doc-filer.json` in the current folder.
+`-v` shows the per-file "unchanged" lines, and `--log <path>` also appends the log to a file.
 
 Exit code `0` on success, `1` if any file failed to convert, `2` on a configuration error,
-`3` if another run with the same config didn't finish within 10 minutes. Check the summary
-line, because a failure part-way through is easy to scroll past:
+`3` if another run with the same config didn't finish within 10 minutes, and `4` (watch mode) if
+another watcher is already running for the config. Check the summary line, because a failure
+part-way through is easy to scroll past:
 
 ```
 Processing complete: 4 converted, 4 copied, 346 unchanged, 1 failed
@@ -85,32 +95,29 @@ to remember to run it.
 - **Config edits take effect without a restart.** A broken edit is logged, and the old
   config stays in use.
 - **It logs `alive` once an hour**, so a silent log means a stuck watcher, not a quiet day.
-- **It runs a published copy** (`%LOCALAPPDATA%\doc-filer\watch\`), so `run.ps1` can still
-  rebuild for one-off runs while it's running.
+- **One watcher per config.** A second one, started any way, logs that another is already
+  running and exits with `4`.
 - **One run at a time per config.** A one-off run waits for a watch run to finish, and the
-  other way round, through a named mutex that Windows releases if the process dies.
+  other way round. Both locks are named mutexes, which Windows releases if the process dies.
 
 ### Starting it at logon: `autostart`
 
 ```powershell
-./run.ps1 autostart on --config C:\path\to\doc-filer.json   # watch at every logon, and start it now
-./run.ps1 autostart status
-./run.ps1 autostart off
+doc-filer autostart on --config C:\path\to\doc-filer.json   # watch at every logon, and start it now
+doc-filer autostart status
+doc-filer autostart off
 ```
 
-The same shape as teams-transcripts' `autostart`.
 - **`on` registers a Task Scheduler task, `doc-filer watch`,** that runs as you, only while you're logged on, and needs no admin rights.
+- **The task runs `doc-filer-background.exe --watch` directly.** It has no window, so there's nothing to close by accident, and stopping the task stops the watcher itself.
 - **The task:**
   - catches up a missed start;
   - restarts the watcher if it crashes (three times, five minutes apart);
   - is never stopped for running too long.
 - **`--log <path>`** sets the log; the default is `%LOCALAPPDATA%\doc-filer\doc-filer.log`. Running `on` again with another config replaces the task.
+- **`on` and `off` also stop any other doc-filer watcher on the same config**, however it was started (a `--watch` at a console, say), so only the task's runs.
 - **`status`** shows whether the watcher is running, when it last started, and how it last ended.
 - **`off`** stops it and removes the task.
-
-**It runs under the headless console host (`conhost.exe --headless`), so no window ever appears.** It isn't run with `powershell -WindowStyle Hidden`, which hides PowerShell's window only after it has opened. A window can still appear, and **closing it stops the watcher.** `status` reports that case as "stopped: its console window was closed".
-
-**One watcher per config.** Don't also start one some other way.
 
 ## Archiving old files
 
@@ -172,7 +179,7 @@ here. See [examples/doc-filer.example.json](examples/doc-filer.example.json).
 |---|---|
 | `sourceRoot` | The staging folder, absolute |
 | `repoRoot` | The repo, relative to the config file |
-| `pandoc` | pandoc's executable, relative to the config file. Empty means the bundled copy (or `pandoc` on the PATH if there's none) |
+| `pandoc` | pandoc's executable, relative to the config file. Empty means `$env:DOC_FILER_PANDOC` if set, then the copy beside the exe, then `pandoc` on the PATH |
 | `people` | `{ "initials", "destination" }` for each person whose files are named by initials. Each is expanded through the person templates |
 | `personConvertTemplates`, `personCopyTemplates` | Rules generated once per person, with `{initials}` and `{destination}` |
 | `convert`, `copy` | Everything else |
@@ -230,10 +237,10 @@ to file something in the wrong place without anyone noticing.
 ## Markdown to PDF: `pdf`
 
 ```powershell
-./run.ps1 pdf notes.md                        # writes notes.pdf beside it
-./run.ps1 pdf notes.md --css my.css           # your own stylesheet
-./run.ps1 pdf deck-notes.md --image-width 1200   # shrink big images, in the PDF only
-./run.ps1 pdf notes.md --output C:\out\notes.pdf
+doc-filer pdf notes.md                        # writes notes.pdf beside it
+doc-filer pdf notes.md --css my.css           # your own stylesheet
+doc-filer pdf deck-notes.md --image-width 1200   # shrink big images, in the PDF only
+doc-filer pdf notes.md --output C:\out\notes.pdf
 ```
 
 pandoc (the bundled copy) turns the markdown into one self-contained HTML page, and headless
@@ -243,7 +250,7 @@ pages.
 
 **Every way this went wrong before failed silently, so it checks instead of trusting:**
 - **YAML frontmatter is dropped first**; pandoc would otherwise print the title twice. A file without frontmatter is left as it is.
-- **Images are found relative to the markdown file.** If pandoc can't fetch one, the run fails and names it. Before this, a PDF with all thirteen screenshots missing passed: 89KB against 832KB.
+- **Images are found relative to the markdown file.** If pandoc can't fetch one, the run fails and names it, rather than writing a PDF with the images missing (89KB against 832KB, with thirteen screenshots).
 - **The old PDF is deleted before printing**, so one held open in a viewer fails the run rather than being passed off as new.
 - **Edge's exit code is ignored** (it's non-zero on corporate-policy noise). The file has to exist, start `%PDF-` and be over 10KB.
 
@@ -277,33 +284,59 @@ changed nothing it shouldn't have:
 - **`pdf … --keep-html <path>`** also saves pandoc's intermediate HTML, with the images
   embedded (shrunk, with `--image-width`). The PDF itself carries timestamps, so compare this.
 
-**.NET 10 to 11 (12 Nov 2026):** with the EA's config, `--self-test` and `--dump-config` were
-identical (54 convert and 25 copy rules after expansion), and the HTML for four documents
-(up to 131 images, shrunk) was byte-for-byte identical. The config is now read by source
-generation, not reflection, so the build is checked by the AOT analysers.
+## Building
+
+It's .NET 11, published as Native AOT. It needs [background-tools-lib](https://github.com/gareth-jones-zen/background-tools-lib)
+checked out beside this repository (or set the `BackgroundToolsLib` property to a checkout elsewhere), then:
+
+```
+dotnet test -c Release
+dotnet publish src/DocFiler.Console -c Release -r win-x64 -o out
+dotnet publish src/DocFiler.Background -c Release -r win-x64 -o out
+```
+
+`out\` is then the same as an unzipped release: the build unpacks pandoc from
+`vendor/pandoc-3.13-windows-x86_64.zip` into `pandoc\` and copies `filters\` and `styles\`
+beside the exes. A plain `dotnet build` does the same into its output folder, so
+`dotnet run --project src/DocFiler.Console -- …` works from a checkout. pandoc stays zipped in
+the repository because `pandoc.exe` (about 240MB) is over GitHub's 100MB file limit.
+
+**To upgrade pandoc:**
+1. Download the release's `pandoc-<version>-windows-x86_64.zip`, and check it against the SHA-256 digest GitHub shows for the asset.
+2. **Compare the old and new versions' output on real files of every kind you convert** (transcripts, forms with `flatten-tables.lua`, OneNote pages). A changed output rewrites every file the next time it's reprocessed.
+3. Replace the zip in `vendor/` (the build insists on exactly one), and update the version and licence path in this README.
+
+A tag `v*` builds, tests and publishes a release: the zip, the two exes, `SHA256SUMS.txt` and a
+build provenance attestation.
 
 ## Layout
 
 ```
-run.ps1                     entry point
-global.json                 the SDK (11.0.100, later feature bands allowed)
-Directory.Build.props       shared settings: net11.0-windows, warnings as errors, AOT analysers
-src/
-  Program.cs                arguments, config discovery
-  FilerConfig.cs            config model, person-template expansion, validation
-  DirectoryProcessor.cs     the two stages; unmatched-file check
-  Filer.cs                  one locked run, then the hook
-  Watcher.cs                watch mode
-  AfterRunHook.cs           runs the hook with the JSON report
-  Json.cs                   JSON by source generation: the config, the hook report
-  ConfigDump.cs             --dump-config
-  RunLock.cs                one run at a time per config
-  FileNameMapper.cs         filename → folder and name
-  TranscriptPrettifier.cs   Teams markdown clean-up
-  SelfTest.cs               routing checks from the config
-  Pdf.cs                    the pdf command
-filters/                    shipped pandoc Lua filters
-styles/                     the pdf command's default stylesheet
-vendor/                     pandoc, zipped; unpacked here by run.ps1
-examples/                   an example config
+global.json                   the SDK (11.0.100, later feature bands allowed)
+Directory.Build.props         shared settings: net11.0-windows, warnings as errors, AOT analysers, where background-tools-lib is
+build/pandoc.targets          unpacks pandoc beside the exes on build and publish
+src/DocFiler/                 the tool, as a library
+  Cli.cs                      arguments, config discovery, --version
+  Autostart.cs                autostart on | off | status (WinBackground's ScheduledTask)
+  FilerConfig.cs              config model, person-template expansion, validation
+  DirectoryProcessor.cs       the two stages, the archive rules, the unmatched-file check
+  Filer.cs                    one locked run, then the hook
+  Watcher.cs                  watch mode
+  AfterRunHook.cs             runs the hook with the JSON report (WinBackground's Shell.Run)
+  Json.cs                     JSON by source generation: the config, the hook report
+  ConfigDump.cs               --dump-config
+  RunLock.cs                  the run and watch locks (WinBackground's NamedLock)
+  Log.cs                      the log
+  Bundled.cs                  finds the pandoc beside the exe
+  FileNameMapper.cs           filename → folder and name
+  TranscriptPrettifier.cs     Teams markdown clean-up
+  SelfTest.cs                 routing checks from the config
+  Pdf.cs                      the pdf command
+src/DocFiler.Console/         doc-filer.exe
+src/DocFiler.Background/      doc-filer-background.exe (no window)
+tests/DocFiler.Tests/         xUnit tests
+filters/                      shipped pandoc Lua filters
+styles/                       the pdf command's default stylesheet
+vendor/                       pandoc, zipped
+examples/                     an example config
 ```
