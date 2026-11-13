@@ -35,7 +35,14 @@ Old = `origin/main` (6e7b2ba, the live code), built in scratch with the .NET 10.
 `--dump-config` diagnostic for the config comparison. New = this branch, published Native AOT. All on copies under
 `%TEMP%`, never the real staging folder or the repo; no document content printed; scratch deleted afterwards.
 
-See the report in the ports log (`claude-executive-assistant/strategy/dotnet-ports/README.md`) for the numbers.
+| Check | Result |
+|---|---|
+| `--self-test`, the real config | byte-identical (34 lines, 32 cases) |
+| `--dump-config`, the real config | byte-identical (1,317 lines; 54 convert and 25 copy rules after expansion) |
+| Full re-file: a copy of every staging folder the rules read (381 files), into empty scratch repos seeded with a copy of the preps folder plus synthetic archive cases | both `374 converted, 381 copied, 0 unchanged, 0 failed, 1 archived`; staging trees identical (755 files), repo trees identical (410 files; only the side-specific config differs); **hook report byte-identical** (23,147 bytes, CRLF, pure ASCII; 381 written, 1 moved); **log identical** (765 lines, timestamps stripped) except the hook's own output, below |
+| Hook output decoding | the old build decoded the hook's output in the console's code page (850 under conhost: UTF-8 `café –` became `caf├® ÔÇô`); the new one reads UTF-8 |
+| `pdf` intermediate HTML, 4 documents (up to 131 images shrunk through GDI+ under AOT) | byte-identical; PDF sizes equal; console output identical |
+| Watch mode, by hand on a scratch config with the windowless exe | first run, unmatched file reported once, a new file filed after the settle, a corrupt .docx retried 3 times 5 minutes apart and only then reported to the hook, a second watcher exits 4 |
 
 ## Switch-over (the main session and GJ)
 
@@ -50,7 +57,7 @@ off, so don't pull it to the new `main` until step 6.
 3. Fast-forward `main` to `dotnet` (`git push origin dotnet:main`), delete `dotnet` locally and on GitHub.
 4. Tag **`v1.0.0`** on `main` and push it. The release workflow tests, publishes, packages
    `doc-filer-1.0.0-win-x64.zip` (both exes, `filters\`, `styles\`, `pandoc\`, README) and attests it. The repo is
-   **public** (not private as CLAUDE.md says), so the provenance attestation works.
+   **public** (not private, as the EA's notes say), so the provenance attestation works.
 5. Download and check: `gh release download v1.0.0 -R gareth-jones-zen/doc-filer -p '*.zip' -p SHA256SUMS.txt`,
    `sha256sum -c` (zip line), `gh attestation verify <zip> -R gareth-jones-zen/doc-filer`.
 6. Unzip into **`%LOCALAPPDATA%\Programs\doc-filer`** (new folder; nothing is running from it yet).
@@ -75,7 +82,7 @@ if ($Arguments.Count -ge 1 -and $Arguments[0] -eq 'pdf') { & $tool @Arguments; e
 
 if ($Arguments.Count -ge 1 -and $Arguments[0] -eq 'autostart') {
     if ($Arguments.Count -ge 2 -and $Arguments[1] -eq 'on') {
-        & $tool autostart on --config $config --log (Join-Path $env:LOCALAPPDATA 'claude-ea\doc-filer.log')
+        & $tool autostart on --config $config --log $log   # the EA's log, as its autostart on passes today
     } else {
         & $tool @Arguments
     }
@@ -102,7 +109,7 @@ release into `%LOCALAPPDATA%\Programs\doc-filer`. One-off runs no longer compile
   --watch` on the EA config by command line (its `Stop-Watcher`), then removes the task. **That's the conhost
   hazard handled by the old code that knows about it.**
 - **The second registers the new task** `doc-filer watch` → `%LOCALAPPDATA%\Programs\doc-filer\doc-filer-background.exe
-  --watch --config "…\tools\doc-filer.json" --log "%LOCALAPPDATA%\claude-ea\doc-filer.log"`, working folder `tools\`,
+  --watch --config "…\tools\doc-filer.json" --log "<the EA's log>"`, working folder `tools\`,
   and starts it. **It also stops any doc-filer watcher on that config first**, either program, however started, so
   even if the first step were skipped the old `doc-filer.exe` wouldn't be left running beside the new one. And the
   run lock has the same name in both, so even an overlap could only serialise runs, never file twice at once.
@@ -116,7 +123,7 @@ release into `%LOCALAPPDATA%\Programs\doc-filer`. One-off runs no longer compile
    ```
    Exactly one `doc-filer-background.exe --watch`; no `doc-filer.exe`, no `conhost`/`powershell` running `run.ps1`.
 2. `./tools/doc-filer.ps1 autostart status` → state `Running`, the command is the background exe.
-3. **The log** (`%LOCALAPPDATA%\claude-ea\doc-filer.log`): a `Watching … (every 30s, settle 60s; config …)` line at the
+3. **The log** (the EA's log, unchanged): a `Watching … (every 30s, settle 60s; config …)` line at the
    switch time, then `Processing complete: 0 converted, 0 copied, N unchanged, 0 failed`; **an `alive` line an hour
    later.** `tools/session-start.py`'s watcher check reads the same file and format.
 4. **A test file filed and committed by the hook:** save a small PDF as
@@ -129,7 +136,7 @@ release into `%LOCALAPPDATA%\Programs\doc-filer`. One-off runs no longer compile
 
 ### 5. The EA's records (main session)
 
-- **CLAUDE.md, "Transcript Ingest":**
+- **The EA's notes on ingest:**
   - "doc-filer is its own tool since 29 Oct 2026 (… **private**; checked out at `~/source/repos/doc-filer`)" → **public**,
     installed from a release at `%LOCALAPPDATA%\Programs\doc-filer` (the checkout is for development only);
   - "**It runs under `conhost --headless`**, so no window appears. On 29 Oct 2026 a console window appeared…" → the
@@ -161,7 +168,7 @@ release into `%LOCALAPPDATA%\Programs\doc-filer`. One-off runs no longer compile
 
 ```
 git -C ~/source/repos/doc-filer checkout v0.1.0
-! powershell -NoProfile -ExecutionPolicy Bypass -File ~/source/repos/doc-filer/run.ps1 autostart on --config "<EA>\tools\doc-filer.json" --log "%LOCALAPPDATA%\claude-ea\doc-filer.log"
+! powershell -NoProfile -ExecutionPolicy Bypass -File ~/source/repos/doc-filer/run.ps1 autostart on --config "<EA>\tools\doc-filer.json" --log "<the EA's log>"
 ```
 
 and put back the old `tools/doc-filer.ps1` (`git revert` of step 2). The run lock and the unmatched-file record are
@@ -173,5 +180,5 @@ the same in both, so going back and forth loses and repeats nothing.
 2. **Release assets:** the zip (about 45MB, since pandoc is in it) plus the two bare exes and `SHA256SUMS.txt`, as
    mail-triage's. The bare exes don't work alone (they need `pandoc\` and `filters\` beside them); dropping them from
    the release is an option. Recommended: keep, for parity with the other tools and the attestation.
-3. **The repo is public**, though CLAUDE.md says private. It holds no EA data (the config lives in the EA repo), and
-   pandoc's GPL licence travels with the zip. Recommended: leave it public and correct CLAUDE.md.
+3. **The repo is public**, though the EA's notes say private. It holds no EA data (the config lives in the EA repo), and
+   pandoc's GPL licence travels with the zip. Recommended: leave it public and correct the notes.
