@@ -55,6 +55,18 @@ public sealed class FilerConfig
     public WatchSettings Watch { get; set; } = new();
 
     /// <summary>
+    /// Optional (1.2.0): the log file, for every run and for the watcher (autostart on uses it). Relative to the config
+    /// file; ~ and %VARIABLES% are expanded. --log, where given, wins.
+    /// </summary>
+    public string Log { get; set; } = "";
+
+    /// <summary>
+    /// Optional (1.2.0): true runs the afterRun hook and the git commit after a one-off run too, as --hook does, so a
+    /// run by hand leaves the repo as the watcher would. --no-hook skips them for one run.
+    /// </summary>
+    public bool Hook { get; set; }
+
+    /// <summary>
     /// Folders in the repo whose dated files move into an archive once they're old enough, so the
     /// folder holds only what's current. Runs on every run, and once a day in watch mode.
     /// </summary>
@@ -72,16 +84,19 @@ public sealed class FilerConfig
     [JsonIgnore] public List<ConvertRule> AllConvertRules { get; private set; } = [];
     [JsonIgnore] public List<CopyRule> AllCopyRules { get; private set; } = [];
     [JsonIgnore] public GitSettings? GitSettings { get; private set; }
+    [JsonIgnore] public string? ResolvedLog { get; private set; }
 
     public static FilerConfig Load(string configPath)
     {
-        var json = File.ReadAllText(configPath);
+        var text = File.ReadAllText(configPath);
+        var json = TomlConfig.IsToml(configPath) ? TomlConfig.ToJson(text, configPath) : text;
         var config = Json.ReadConfig(json)
                      ?? throw new InvalidDataException($"Could not parse {configPath}");
 
         config.ConfigPath = Path.GetFullPath(configPath);
         config.ConfigDirectory = Path.GetDirectoryName(config.ConfigPath)!;
         config.ResolvedRepoRoot = Path.GetFullPath(Path.Combine(config.ConfigDirectory, config.RepoRoot));
+        config.ResolvedLog = string.IsNullOrWhiteSpace(config.Log) ? null : ExpandPath(config.Log, config.ConfigDirectory);
         // A config's own pandoc wins; then one named in DOC_FILER_PANDOC; then the copy that
         // ships with the tool, unpacked beside the exe; then pandoc on the PATH.
         var named = Environment.GetEnvironmentVariable("DOC_FILER_PANDOC");
@@ -92,6 +107,19 @@ public sealed class FilerConfig
         config.ExpandPersonTemplates();
         config.Validate();
         return config;
+    }
+
+    /// <summary>A path setting: ~ is the home folder, %VARIABLES% are expanded, and a relative path is relative to
+    /// the config file's folder.</summary>
+    internal static string ExpandPath(string value, string configDirectory)
+    {
+        var expanded = Environment.ExpandEnvironmentVariables(value.Trim());
+        if (expanded == "~" || expanded.StartsWith("~/", StringComparison.Ordinal) || expanded.StartsWith("~\\", StringComparison.Ordinal))
+        {
+            expanded = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), expanded.Length > 2 ? expanded[2..] : "");
+        }
+
+        return Path.GetFullPath(Path.Combine(configDirectory, expanded));
     }
 
     /// <summary>

@@ -25,9 +25,11 @@ It holds two programs: `doc-filer.exe`, for a console, and `doc-filer-background
 program with no window, which the logon task runs. Beside them are `filters\` (the shipped Lua
 filters), `styles\` (the PDF stylesheet) and `pandoc\`.
 
-**To upgrade**, run `doc-filer autostart off`, unzip the new release over the old folder, then
-`doc-filer autostart on` with the same options. The task runs the exe, so it can't be replaced while
-the watcher is running.
+**To upgrade while the watcher runs:** rename `doc-filer.exe` and `doc-filer-background.exe` to `.old` (Windows
+lets you rename a program that's running, but not overwrite it), unzip the new release into the same folder, then run
+`doc-filer autostart restart`. That stops the watcher, waits for it to exit and starts the new version, keeping the
+task as it was. Delete the `.old` files afterwards. (Or `doc-filer autostart off`, unzip, then `autostart on` with the
+same options.)
 
 **pandoc comes with the tool**: pandoc 3.13, the official Windows release, unchanged. pandoc is
 GPL-2.0-or-later, by John MacFarlane and contributors. Its licence travels with it
@@ -37,17 +39,18 @@ GPL-2.0-or-later, by John MacFarlane and contributors. Its licence travels with 
 ## Running it
 
 ```powershell
-doc-filer --config C:\path\to\doc-filer.json              # file whatever is new
-doc-filer --config C:\path\to\doc-filer.json --dry-run    # say what it would do, write nothing
-doc-filer --config C:\path\to\doc-filer.json --self-test  # check the routing rules
-doc-filer --config C:\path\to\doc-filer.json --hook       # file, then run the after-run hook
-doc-filer autostart on --config C:\path\to\doc-filer.json # watch at every logon, below
+doc-filer --config C:\path\to\doc-filer.toml              # file whatever is new
+doc-filer --config C:\path\to\doc-filer.toml --dry-run    # say what it would do, write nothing
+doc-filer --config C:\path\to\doc-filer.toml --self-test  # check the routing rules
+doc-filer --config C:\path\to\doc-filer.toml --hook       # file, then run the after-run hook (or hook = true)
+doc-filer autostart on --config C:\path\to\doc-filer.toml # watch at every logon, below
 doc-filer pdf notes.md                                    # markdown to PDF, below
 doc-filer --version
 ```
 
-Without `--config` it uses `$env:DOC_FILER_CONFIG`, then `doc-filer.json` in the current folder.
-`-v` shows the per-file "unchanged" lines, and `--log <path>` also appends the log to a file.
+Without `--config` it uses `$env:DOC_FILER_CONFIG`, then `doc-filer.toml`, then `doc-filer.json`, in the current
+folder. `-v` shows the per-file "unchanged" lines, and `--log <path>` also appends the log to a file (by default, the
+config's `log`). `--no-hook` skips the hook and the commit for one run when the config sets `hook = true`.
 
 Exit code `0` on success, `1` if any file failed to convert, `2` on a configuration error,
 `3` if another run with the same config didn't finish within 10 minutes, and `4` (watch mode) if
@@ -103,8 +106,9 @@ to remember to run it.
 ### Starting it at logon: `autostart`
 
 ```powershell
-doc-filer autostart on --config C:\path\to\doc-filer.json   # watch at every logon, and start it now
+doc-filer autostart on --config C:\path\to\doc-filer.toml   # watch at every logon, and start it now
 doc-filer autostart status
+doc-filer autostart restart     # after an upgrade: stop, wait for it to exit, start the new version
 doc-filer autostart off
 ```
 
@@ -210,8 +214,25 @@ sees the files before they're committed.
 
 ## The config
 
-All behaviour lives in one JSONC file (comments allowed), kept with the repo it serves, not
-here. See [examples/doc-filer.example.json](examples/doc-filer.example.json).
+All behaviour lives in one file, kept with the repo it serves, not here: **TOML** (since 1.2.0, like the other tools
+on the shared library), or JSONC (comments allowed), chosen by the extension. See
+[examples/doc-filer.example.json](examples/doc-filer.example.json); in TOML the same settings take snake_case names
+(`source_root`, `[[person_convert_templates]]`, `lua_filter`, `[[self_test]]`), and a regex is best written as a
+'literal string', which needs no escaping:
+
+```toml
+source_root = 'C:\Users\me\OneDrive\Staging'
+repo_root = '..'
+log = '%LOCALAPPDATA%/doc-filer/doc-filer.log'
+hook = true
+
+[[convert]]
+from = 'Notes'
+match = '^Ad-hoc (?<label>.+?) (?<date>\d{4}-\d{2}-\d{2})(?<part>-part\d+)?$'
+extensions = ['.docx']
+to = 'markdown/ad-hoc'
+name = '{date}-{label}{part}'
+```
 
 | Setting | What it is |
 |---|---|
@@ -224,6 +245,8 @@ here. See [examples/doc-filer.example.json](examples/doc-filer.example.json).
 | `afterRun` | The hook command, above |
 | `git` | Commit what's filed and archived (above): `repo`, `commit`, `push`, `trailers` |
 | `watch` | `checkEverySeconds`, `settleSeconds` |
+| `log` | The log file for every run and the watcher (`autostart on` uses it); relative to the config, `~` and `%VARIABLES%` expanded. `--log` wins |
+| `hook` | `true`: a one-off run runs the hook and the git commit too, as `--hook` does, so a run by hand leaves the repo as the watcher would |
 | `archive` | Folders whose old dated files move into an archive (above) |
 | `selfTest` | Routing checks, below |
 
@@ -356,7 +379,8 @@ Directory.Build.props         shared settings: net11.0-windows, warnings as erro
 build/pandoc.targets          unpacks pandoc beside the exes on build and publish
 src/DocFiler/                 the tool, as a library
   Cli.cs                      arguments, config discovery, --version
-  Autostart.cs                autostart on | off | status (WinBackground's ScheduledTask)
+  Autostart.cs                autostart on | off | restart | status (WinBackground's ScheduledTask)
+  TomlConfig.cs               a TOML config, read into the same model as the JSON one
   FilerConfig.cs              config model, person-template expansion, validation
   DirectoryProcessor.cs       the two stages, the archive rules, the unmatched-file check
   Filer.cs                    one locked run, then the hook

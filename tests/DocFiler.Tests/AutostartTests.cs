@@ -173,6 +173,25 @@ public sealed class AutostartTests : IDisposable
     }
 
     [Fact]
+    public void Restart_stops_then_starts_the_task_and_says_so()
+    {
+        task.Exists = true;
+        var (code, output, _) = Run("restart");
+        Assert.Equal(0, code);
+        Assert.Equal(["stop", "start"], task.Calls);
+        Assert.Contains("Restarted 'doc-filer watch'", output);
+    }
+
+    [Fact]
+    public void Restart_with_no_task_starts_nothing()
+    {
+        var (code, output, _) = Run("restart");
+        Assert.Equal(0, code);
+        Assert.Equal(["stop"], task.Calls);
+        Assert.Contains("nothing to restart", output);
+    }
+
+    [Fact]
     public void The_real_stop_script_runs_and_finds_nothing_for_an_unused_config()
     {
         Autostart.StopOtherWatchers = stop;   // the real one, on a config no process has
@@ -208,6 +227,12 @@ public sealed class AutostartTests : IDisposable
         public bool Stop()
         {
             Calls.Add("stop");
+            return Exists;
+        }
+
+        public bool Start()
+        {
+            Calls.Add("start");
             return Exists;
         }
 

@@ -44,8 +44,10 @@ public static partial class Autostart
                     return Off(output);
                 case "status":
                     return Status(output);
+                case "restart":
+                    return Restart(output, errors);
                 default:
-                    errors.WriteLine($"Unknown autostart command '{verb}'. Use: autostart on [--config <path>] [--log <path>] | off | status");
+                    errors.WriteLine($"Unknown autostart command '{verb}'. Use: autostart on [--config <path>] [--log <path>] | off | restart | status");
                     return 2;
             }
         }
@@ -81,7 +83,7 @@ public static partial class Autostart
         }
 
         config = Path.GetFullPath(config);
-        var log = Path.GetFullPath(Option(args, "--log") ?? DefaultLog);
+        var log = Path.GetFullPath(Option(args, "--log") ?? ConfigLog(config) ?? DefaultLog);
         var task = Tasks(TaskName, Description(config, log));
 
         // Stop what's running first: the task's own watcher (Stop waits for it to exit), then any other watcher on
@@ -94,6 +96,41 @@ public static partial class Autostart
         output.WriteLine($"Autostart is on: '{TaskName}' runs at every logon, and has started now.");
         output.WriteLine($"  config  {config}");
         output.WriteLine($"  log     {log}");
+        return 0;
+    }
+
+    /// <summary>The config's log setting, if it loads and has one.</summary>
+    private static string? ConfigLog(string config)
+    {
+        try
+        {
+            return FilerConfig.Load(config).ResolvedLog;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Stop the watcher, wait for it to exit, and start it again, keeping the task as it is: how it picks up
+    /// a new version after an upgrade (rename the two exes to .old, unzip the release, restart).</summary>
+    private static int Restart(TextWriter output, TextWriter errors)
+    {
+        try
+        {
+            if (!Tasks(TaskName, TaskName).Restart())
+            {
+                output.WriteLine("Autostart is off, so there's nothing to restart. `doc-filer autostart on` turns it on.");
+                return 0;
+            }
+        }
+        catch (InvalidOperationException error)
+        {
+            errors.WriteLine(error.Message);
+            return 1;
+        }
+
+        output.WriteLine($"Restarted '{TaskName}': the watcher is running the installed version.");
         return 0;
     }
 

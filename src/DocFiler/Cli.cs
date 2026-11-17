@@ -31,6 +31,7 @@ public static class Cli
         var dumpConfig = false;
         var watch = false;
         var hook = false;
+        var noHook = false;
         string? configPath = null;
 
         for (var i = 0; i < args.Length; i++)
@@ -52,6 +53,9 @@ public static class Cli
                     break;
                 case "--hook":
                     hook = true;
+                    break;
+                case "--no-hook":
+                    noHook = true;
                     break;
                 case "--verbose" or "-v":
                     Log.Verbose = true;
@@ -82,10 +86,22 @@ public static class Cli
 
             if (watch)
             {
+                // The config's log, if it has one and --log wasn't given. A config that won't load is the watcher's
+                // to report (it waits for a fix), so it's only read for the log here.
+                try
+                {
+                    UseConfigLog(FilerConfig.Load(configPath));
+                }
+                catch (Exception)
+                {
+                }
+
                 return new Watcher(configPath).Run();
             }
 
             var config = FilerConfig.Load(configPath);
+            UseConfigLog(config);
+            hook = !noHook && (hook || config.Hook);
 
             if (dumpConfig)
             {
@@ -119,7 +135,17 @@ public static class Cli
         }
     }
 
-    /// <summary>--config, then $DOC_FILER_CONFIG, then doc-filer.json in the current folder.</summary>
+    /// <summary>The config's log, when --log didn't name one.</summary>
+    private static void UseConfigLog(FilerConfig config)
+    {
+        if (Log.FilePath is null && config.ResolvedLog is { } log)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(log)!);
+            Log.FilePath = log;
+        }
+    }
+
+    /// <summary>--config, then $DOC_FILER_CONFIG, then doc-filer.toml or doc-filer.json in the current folder.</summary>
     internal static string FindConfig(string? given)
     {
         if (!string.IsNullOrWhiteSpace(given))
@@ -133,14 +159,17 @@ public static class Cli
             return fromEnvironment;
         }
 
-        var inCurrentDirectory = Path.Combine(Environment.CurrentDirectory, "doc-filer.json");
-        if (File.Exists(inCurrentDirectory))
+        foreach (var name in new[] { "doc-filer.toml", "doc-filer.json" })
         {
-            return inCurrentDirectory;
+            var inCurrentDirectory = Path.Combine(Environment.CurrentDirectory, name);
+            if (File.Exists(inCurrentDirectory))
+            {
+                return inCurrentDirectory;
+            }
         }
 
         throw new FileNotFoundException(
-            "No config: pass --config <path>, set DOC_FILER_CONFIG, or run from a folder holding doc-filer.json.");
+            "No config: pass --config <path>, set DOC_FILER_CONFIG, or run from a folder holding doc-filer.toml (or doc-filer.json).");
     }
 
     private static void PrintUsage()
@@ -150,16 +179,19 @@ public static class Cli
             into a repo by filename rules.
 
               doc-filer [options]
-              doc-filer autostart on [--config <p>] [--log <p>] | off | status
+              doc-filer autostart on [--config <p>] [--log <p>] | off | restart | status
               doc-filer pdf <file.md> [--css <p>] [--image-width <n>] [--output <p>]   (pdf --help for more)
 
             Options:
-                  --config <p>  The config file (default: $DOC_FILER_CONFIG, then ./doc-filer.json).
+                  --config <p>  The config file, TOML or JSON (default: $DOC_FILER_CONFIG, then
+                                ./doc-filer.toml, then ./doc-filer.json).
               -n, --dry-run     Report what would be converted and copied, write nothing.
                   --self-test   Check filename routing against the config's selfTest cases and exit.
                   --watch       Stay running, and file whatever lands in staging. Runs the hook.
-                  --hook        After a one-off run, run the config's afterRun command too.
-                  --log <p>     Also append the log to this file.
+                  --hook        After a one-off run, run the config's afterRun command and git commit too
+                                (the default when the config sets hook = true).
+                  --no-hook     Skip them for this run, whatever the config says.
+                  --log <p>     Also append the log to this file (default: the config's log, if set).
               -v, --verbose     Show the per-file "unchanged" lines.
                   --version     Show the version.
               -h, --help        Show this message.
