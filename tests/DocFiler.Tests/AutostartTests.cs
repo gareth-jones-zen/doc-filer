@@ -183,6 +183,14 @@ public sealed class AutostartTests : IDisposable
     }
 
     [Fact]
+    public void The_config_can_come_before_autostart_as_with_the_other_tools()
+    {
+        task.Exists = true;
+        Assert.Equal(0, Cli.Run(["--config", box.ConfigPath, "autostart", "restart"]));
+        Assert.Equal(["stop", "start"], task.Calls);
+    }
+
+    [Fact]
     public void Restart_with_no_task_starts_nothing()
     {
         var (code, output, _) = Run("restart");
