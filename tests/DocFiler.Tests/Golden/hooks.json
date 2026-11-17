@@ -1,0 +1,244 @@
+[
+ {
+  "name": "written",
+  "committed": {
+   "meetings/series/leads-catch-up/2026-11-10.md": "old\n",
+   "briefings/x.md": "same\n"
+  },
+  "written": {
+   "meetings/series/leads-catch-up/2026-11-10.md": "new\n",
+   "team/ben-wolstencroft/one-to-ones/2026-11-17.md": "t\n",
+   "reports/weekly-updates/whole-team/2026-11-16.md": "w\n",
+   "briefings/x.md": "same\n"
+  },
+  "untracked": {
+   "other.md": "not filed\n"
+  },
+  "report": {
+   "written": [
+    "team/ben-wolstencroft/one-to-ones/2026-11-17.md",
+    "meetings/series/leads-catch-up/2026-11-10.md",
+    "briefings/x.md",
+    "reports/weekly-updates/whole-team/2026-11-16.md",
+    "gone/missing.md"
+   ],
+   "moved": [],
+   "failed": [],
+   "unmatched": []
+  },
+  "commits": [
+   {
+    "message": "Ingest leads-catch-up 2026-11-10, whole-team 2026-11-16, one-to-ones 2026-11-17\n\nFiled automatically by doc-filer (tools/doc_filer_hook.py).\n\nCo-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>",
+    "files": [
+     "M\tmeetings/series/leads-catch-up/2026-11-10.md",
+     "A\treports/weekly-updates/whole-team/2026-11-16.md",
+     "A\tteam/ben-wolstencroft/one-to-ones/2026-11-17.md"
+    ]
+   }
+  ],
+  "status": [
+   "?? other.md"
+  ],
+  "notes": [],
+  "items": [
+   {
+    "id": "144a1fa1",
+    "source": "transcripts",
+    "type": "transcript",
+    "added": "2026-11-17T09:30:05",
+    "arrived": "2026-11-17T09:30:05",
+    "path": "meetings/series/leads-catch-up/2026-11-10.md",
+    "summary_needed": true,
+    "dictation": [],
+    "title": "meetings/series/leads-catch-up/2026-11-10.md"
+   },
+   {
+    "id": "05b369de",
+    "source": "transcripts",
+    "type": "transcript",
+    "added": "2026-11-17T09:30:05",
+    "arrived": "2026-11-17T09:30:05",
+    "path": "team/ben-wolstencroft/one-to-ones/2026-11-17.md",
+    "summary_needed": false,
+    "dictation": [],
+    "title": "team/ben-wolstencroft/one-to-ones/2026-11-17.md"
+   }
+  ]
+ },
+ {
+  "name": "moves",
+  "committed": {
+   "meetings/preps/2026-10-01-a-prep.md": "a\nsome lines\n",
+   "meetings/preps/2026-10-02-b-prep.md": "b\nmore lines\n"
+  },
+  "untracked": {
+   "meetings/preps/2026-10-03-c-prep.md": "c\n"
+  },
+  "move": [
+   {
+    "from": "meetings/preps/2026-10-01-a-prep.md",
+    "to": "meetings/preps/archive/2026-10/2026-10-01-a-prep.md"
+   },
+   {
+    "from": "meetings/preps/2026-10-02-b-prep.md",
+    "to": "meetings/preps/archive/2026-10/2026-10-02-b-prep.md"
+   }
+  ],
+  "report": {
+   "written": [],
+   "failed": [],
+   "unmatched": [],
+   "moved": [
+    {
+     "from": "meetings/preps/2026-10-01-a-prep.md",
+     "to": "meetings/preps/archive/2026-10/2026-10-01-a-prep.md"
+    },
+    {
+     "from": "meetings/preps/2026-10-03-c-prep.md",
+     "to": "meetings/preps/archive/2026-10/2026-10-03-c-prep.md"
+    },
+    {
+     "from": "meetings/preps/2026-10-02-b-prep.md",
+     "to": "meetings/preps/archive/2026-10/2026-10-02-b-prep.md"
+    }
+   ]
+  },
+  "commits": [
+   {
+    "message": "Archive 2 prep note(s) older than two weeks\n\nMoved by doc-filer's archive rule (tools/doc-filer.json).\n\nCo-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>",
+    "files": [
+     "R100\tmeetings/preps/2026-10-01-a-prep.md\tmeetings/preps/archive/2026-10/2026-10-01-a-prep.md",
+     "R100\tmeetings/preps/2026-10-02-b-prep.md\tmeetings/preps/archive/2026-10/2026-10-02-b-prep.md"
+    ]
+   }
+  ],
+  "status": [
+   "?? meetings/preps/2026-10-03-c-prep.md"
+  ],
+  "notes": [],
+  "items": []
+ },
+ {
+  "name": "both",
+  "committed": {
+   "meetings/preps/2026-10-01-a-prep.md": "a\nsome lines\n"
+  },
+  "move": [
+   {
+    "from": "meetings/preps/2026-10-01-a-prep.md",
+    "to": "meetings/preps/archive/2026-10/2026-10-01-a-prep.md"
+   }
+  ],
+  "written": {
+   "meetings/ad-hoc/2026-11-17-Zoë_review.md": "z\n"
+  },
+  "report": {
+   "written": [
+    "meetings/ad-hoc/2026-11-17-Zoë_review.md"
+   ],
+   "failed": [],
+   "unmatched": [],
+   "moved": [
+    {
+     "from": "meetings/preps/2026-10-01-a-prep.md",
+     "to": "meetings/preps/archive/2026-10/2026-10-01-a-prep.md"
+    }
+   ]
+  },
+  "commits": [
+   {
+    "message": "Archive 1 prep note(s) older than two weeks\n\nMoved by doc-filer's archive rule (tools/doc-filer.json).\n\nCo-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>",
+    "files": [
+     "R100\tmeetings/preps/2026-10-01-a-prep.md\tmeetings/preps/archive/2026-10/2026-10-01-a-prep.md"
+    ]
+   },
+   {
+    "message": "Ingest ad-hoc 2026-11-17-Zoë_review\n\nFiled automatically by doc-filer (tools/doc_filer_hook.py).\n\nCo-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>",
+    "files": [
+     "A\tmeetings/ad-hoc/2026-11-17-Zoë_review.md"
+    ]
+   }
+  ],
+  "status": [],
+  "notes": [],
+  "items": [
+   {
+    "id": "cbb4a974",
+    "source": "transcripts",
+    "type": "transcript",
+    "added": "2026-11-17T09:30:05",
+    "arrived": "2026-11-17T09:30:05",
+    "path": "meetings/ad-hoc/2026-11-17-Zoë_review.md",
+    "summary_needed": true,
+    "dictation": [],
+    "title": "meetings/ad-hoc/2026-11-17-Zoë_review.md"
+   }
+  ]
+ },
+ {
+  "name": "failing-hook",
+  "failing_hook": true,
+  "committed": {
+   "meetings/preps/2026-10-01-a-prep.md": "a\nsome lines\n"
+  },
+  "move": [
+   {
+    "from": "meetings/preps/2026-10-01-a-prep.md",
+    "to": "meetings/preps/archive/2026-10/2026-10-01-a-prep.md"
+   }
+  ],
+  "written": {
+   "reports/exco-notes/2026-11-13.md": "e\n",
+   "team/dan-clark/one-to-ones/2026-11-17.md": "d\n"
+  },
+  "report": {
+   "written": [
+    "reports/exco-notes/2026-11-13.md",
+    "team/dan-clark/one-to-ones/2026-11-17.md"
+   ],
+   "failed": [],
+   "unmatched": [],
+   "moved": [
+    {
+     "from": "meetings/preps/2026-10-01-a-prep.md",
+     "to": "meetings/preps/archive/2026-10/2026-10-01-a-prep.md"
+    }
+   ]
+  },
+  "commits": [],
+  "status": [
+   "R  meetings/preps/2026-10-01-a-prep.md -> meetings/preps/archive/2026-10/2026-10-01-a-prep.md",
+   "A  reports/exco-notes/2026-11-13.md",
+   "A  team/dan-clark/one-to-ones/2026-11-17.md"
+  ],
+  "notes": [
+   [
+    "Archived, not committed",
+    [
+     "1 prep note(s)",
+     "See doc-filer.log."
+    ]
+   ],
+   [
+    "Filed, not committed",
+    [
+     "exco-notes 2026-11-13, one-to-ones 2026-11-17",
+     "See doc-filer.log."
+    ]
+   ]
+  ],
+  "items": [
+   {
+    "id": "36ba768b",
+    "source": "transcripts",
+    "type": "transcript",
+    "added": "2026-11-17T09:30:05",
+    "arrived": "2026-11-17T09:30:05",
+    "path": "team/dan-clark/one-to-ones/2026-11-17.md",
+    "summary_needed": false,
+    "dictation": [],
+    "title": "team/dan-clark/one-to-ones/2026-11-17.md"
+   }
+  ]
+ }
+]

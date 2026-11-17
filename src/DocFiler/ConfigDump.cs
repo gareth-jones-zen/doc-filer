@@ -49,6 +49,15 @@ internal static class ConfigDump
             case WatchSettings watch:
                 Properties(path, watch);
                 break;
+            case System.Text.Json.Nodes.JsonNode json:
+                Console.WriteLine($"{path} = {json.ToJsonString()}");
+                break;
+            case RepoCommit.GitSettings git:
+                Value($"{path}.Commit", git.Commit);
+                Value($"{path}.Push", git.Push);
+                Value($"{path}.Repo", git.Repo);
+                Value($"{path}.Trailers", git.Trailers.ToList());
+                break;
             case List<Person> list:
                 Items(path, list);
                 break;

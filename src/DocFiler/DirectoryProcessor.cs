@@ -28,7 +28,8 @@ public sealed class ProcessResult
               (Moved.Count > 0 ? $", {Moved.Count} archived" : "");
 }
 
-public sealed record MovedFile(string From, string To);
+/// <summary>An archive move, relative to the repo root, and which archive rule (its index) made it.</summary>
+public sealed record MovedFile(string From, string To, int Rule = 0);
 
 public sealed class DirectoryProcessor(FilerConfig config, bool dryRun)
 {
@@ -52,15 +53,15 @@ public sealed class DirectoryProcessor(FilerConfig config, bool dryRun)
         }
 
         // Then tidy: dated files past their keep window move into their folder's archive.
-        foreach (var rule in config.Archive)
+        for (var index = 0; index < config.Archive.Count; index++)
         {
-            RunArchiveRule(rule);
+            RunArchiveRule(config.Archive[index], index);
         }
 
         return _result;
     }
 
-    private void RunArchiveRule(ArchiveRule rule)
+    private void RunArchiveRule(ArchiveRule rule, int index)
     {
         var folder = Path.GetFullPath(Path.Combine(config.ResolvedRepoRoot, rule.Folder));
         if (!Directory.Exists(folder))
@@ -116,7 +117,7 @@ public sealed class DirectoryProcessor(FilerConfig config, bool dryRun)
             var from = Path.GetRelativePath(config.ResolvedRepoRoot, file).Replace('\\', '/');
             var to = Path.GetRelativePath(config.ResolvedRepoRoot, destination).Replace('\\', '/');
             Log.Info($"Archived {from} -> {to}");
-            _result.Moved.Add(new MovedFile(from, to));
+            _result.Moved.Add(new MovedFile(from, to, index));
         }
     }
 
