@@ -136,12 +136,13 @@ window, into an archive beside them:
 - **`keepDays`** defaults to 14, and **`extensions`** to `[".md"]`. **`to`** is relative to `folder`, with `{yyyy}`, `{mm}` and `{dd}`.
 - **It never overwrites or deletes.** A file whose destination already exists stays where it is, with a warning.
 - **It runs on every run, and in watch mode once a day** when the date changes, so it needs no files to arrive.
-- **Moves go to the after-run hook** as `moved`, so the repo can commit them. Git sees them as renames, so `git log --follow` keeps the history.
+- **Moves go to the after-run hook** as `moved`, and with a `git` section they're committed (below). Git sees them as renames, so `git log --follow` keeps the history.
+- **`commitMessage`**, with a `git` section, is the archive commit's subject: `{count}` (files moved), `{folder}` and `{keepDays}`. The default is `Archive {count} file(s) from {folder} older than {keepDays} days`.
 
 ## The after-run hook
 
-The tool knows nothing about git, or about what the repo wants done with new files. A
-config's `afterRun` names a command that does:
+For anything else the repo wants done with new files (beyond committing them, above), a config's
+`afterRun` names a command that does it:
 
 ```jsonc
 "afterRun": ["python", "tools/doc_filer_hook.py"]
@@ -164,11 +165,48 @@ new unmatched file. It gets a JSON report on stdin:
 ```
 
 `written` is relative to the repo root. Its output goes to the log, prefixed `hook:`. A
-typical hook commits the `written` paths and nothing else, and notifies someone about
-`failed` and `unmatched`.
+typical hook notifies someone about `failed` and `unmatched`, and does whatever else new files
+need.
 
 **Anything outside ASCII is written as `\uXXXX`** (`"Zo\u00EB"`, for "Zoë"), so the hook's stdin is pure
 ASCII whatever the console's code page. Any JSON reader turns it back.
+
+## Committing to git: `git`
+
+If the repo is a git repository, a `git` section commits what each run files into it, and nothing else:
+
+```jsonc
+"git": {
+  "repo": "..",                                    // the repository, relative to the config file
+  "push": true,                                    // optional (default false): push after each commit
+  "trailers": ["Co-Authored-By: Name <name@example.com>"]   // optional: the message's last lines
+}
+```
+
+It commits after every run that filed or archived something, in watch mode always and after a one-off run only with
+`--hook`, **after the after-run hook**, so a hook that looks at what git sees as changed (new transcripts, say) still
+sees the files before they're committed.
+
+- **Archive moves first**, one commit per archive rule, as renames, with the rule's `commitMessage` as the subject and
+  `Moved by doc-filer's archive rule (tools/doc-filer.json).` below it. Only moves of files git already tracked are
+  committed: a file that was never committed moves but stays uncommitted.
+- **Then the files written**, and of those only the ones git sees as changed, so nothing else changed or staged in the
+  repository is swept up. The message names each file by its folder and name, in git status's order (changed files git
+  already tracks first, then new ones):
+
+  ```
+  Ingest leads-catch-up 2026-11-10, one-to-ones 2026-11-17
+
+  Filed automatically by doc-filer (tools/doc-filer.json).
+
+  Co-Authored-By: Name <name@example.com>
+  ```
+- **A commit that fails** (a hook in the repository refusing it, say) is logged and notified: "Archived, not committed"
+  or "Filed, not committed". The files stay where they were filed. **A push that fails** is only logged; the commit
+  stays. `"commit": false` keeps the section but commits nothing; with no section, nothing is committed.
+- It's [background-tools-lib](https://github.com/gareth-jones-zen/background-tools-lib)'s `RepoCommit`: git is run from
+  the PATH, every path is literal, another git holding the index is waited for briefly, and the log has counts and the
+  commit id, never contents.
 
 ## The config
 
@@ -184,6 +222,7 @@ here. See [examples/doc-filer.example.json](examples/doc-filer.example.json).
 | `personConvertTemplates`, `personCopyTemplates` | Rules generated once per person, with `{initials}` and `{destination}` |
 | `convert`, `copy` | Everything else |
 | `afterRun` | The hook command, above |
+| `git` | Commit what's filed and archived (above): `repo`, `commit`, `push`, `trailers` |
 | `watch` | `checkEverySeconds`, `settleSeconds` |
 | `archive` | Folders whose old dated files move into an archive (above) |
 | `selfTest` | Routing checks, below |

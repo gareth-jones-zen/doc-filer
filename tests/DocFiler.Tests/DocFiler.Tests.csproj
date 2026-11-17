@@ -10,6 +10,8 @@
     <Using Include="Xunit" />
     <!-- The example config, for the self-test test. -->
     <None Include="..\..\examples\doc-filer.example.json" Link="doc-filer.example.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The EA's after-run hook run on synthetic cases: what the git section has to commit the same. -->
+    <None Include="Golden\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\DocFiler\DocFiler.csproj" />

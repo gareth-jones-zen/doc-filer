@@ -1,4 +1,6 @@
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using RepoCommit;
 
 namespace DocFiler;
 
@@ -43,6 +45,13 @@ public sealed class FilerConfig
     /// </summary>
     public List<string> AfterRun { get; set; } = [];
 
+    /// <summary>
+    /// Optional: commit what each run files into the repo (with --hook, and always in watch mode), only those files,
+    /// after the afterRun hook. Keys: repo (relative to the config file), commit, push, trailers. See README.md,
+    /// "Committing to git".
+    /// </summary>
+    public JsonNode? Git { get; set; }
+
     public WatchSettings Watch { get; set; } = new();
 
     /// <summary>
@@ -62,6 +71,7 @@ public sealed class FilerConfig
     [JsonIgnore] public string ResolvedPandoc { get; private set; } = "";
     [JsonIgnore] public List<ConvertRule> AllConvertRules { get; private set; } = [];
     [JsonIgnore] public List<CopyRule> AllCopyRules { get; private set; } = [];
+    [JsonIgnore] public GitSettings? GitSettings { get; private set; }
 
     public static FilerConfig Load(string configPath)
     {
@@ -162,11 +172,34 @@ public sealed class FilerConfig
             problems.Add($"convert rule for '{rule.From}' has no match pattern.");
         }
 
+        if (Git is not null)
+        {
+            try
+            {
+                GitSettings = GitSettings.Read(Git, ConfigPath, path => Path.GetFullPath(Path.Combine(ConfigDirectory, path)), "\"git\"");
+                if (!Directory.Exists(GitSettings.Repo))
+                {
+                    problems.Add($"git: repo does not resolve to a directory: {GitSettings.Repo}");
+                }
+            }
+            catch (FormatException exception)
+            {
+                problems.Add(exception.Message);
+            }
+        }
+
         foreach (var rule in Archive)
         {
             if (string.IsNullOrWhiteSpace(rule.Folder))
             {
                 problems.Add("an archive rule has no folder.");
+            }
+
+            var unknown = System.Text.RegularExpressions.Regex.Matches(rule.CommitMessage, @"\{[^}]*\}")
+                .Select(match => match.Value).Where(field => !RepoCommits.ArchivePlaceholders.Contains(field)).ToList();
+            if (unknown.Count > 0)
+            {
+                problems.Add($"archive rule for '{rule.Folder}': commitMessage can use {string.Join(", ", RepoCommits.ArchivePlaceholders)}, not {string.Join(", ", unknown)}.");
             }
             try
             {
@@ -334,6 +367,12 @@ public sealed class ArchiveRule
 
     /// <summary>Where a file goes, relative to <see cref="Folder"/>. Supports {yyyy}, {mm} and {dd}.</summary>
     public string To { get; set; } = "archive/{yyyy}-{mm}";
+
+    /// <summary>
+    /// With a git section: the archive commit's subject, with {count} (files moved), {folder} and {keepDays}. Empty
+    /// means "Archive {count} file(s) from {folder} older than {keepDays} days".
+    /// </summary>
+    public string CommitMessage { get; set; } = "";
 }
 
 public sealed class WatchSettings

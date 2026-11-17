@@ -16,6 +16,7 @@
     <!-- The pdf command's image-width option shrinks images with GDI+ (no warnings under Native AOT). -->
     <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
     <ProjectReference Include="$(BackgroundToolsLib)src\WinBackground\WinBackground.csproj" />
+    <ProjectReference Include="$(BackgroundToolsLib)src\RepoCommit\RepoCommit.csproj" />
   </ItemGroup>
 
   <ItemGroup>
