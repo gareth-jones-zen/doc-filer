@@ -212,6 +212,20 @@ sees the files before they're committed.
   the PATH, every path is literal, another git holding the index is waited for briefly, and the log has counts and the
   commit id, never contents.
 
+## Sharing settings with other tools: `base`
+
+Several tools on the shared library can keep common settings in one file, named at the top of each tool's settings
+(`base = "base-config.toml"`, relative to the settings file). **TOML settings only**; a JSON config can't name one.
+
+- **The base's `[paths]` are variables** for this tool's paths, looked up before the environment: with
+  `EA_LOCAL = "%LOCALAPPDATA%/claude-ea"` there, `log = '%EA_LOCAL%/doc-filer.log'` works here.
+- **Its other settings that doc-filer knows and doesn't set itself are used** (top-level keys such as `log` or `hook`);
+  settings it doesn't know are left out, so one base serves tools that use different parts of it.
+- **A table such as `[git]` applies only if this file has that section too**, even empty (`[git]` on its own line):
+  the base's keys fill it in, this file's own keys winning.
+- A base that's missing or can't be read is a config problem, reported as any other. The loader is
+  [background-tools-lib](https://github.com/gareth-jones-zen/background-tools-lib)'s `PyCompat.BaseSettings`.
+
 ## The config
 
 All behaviour lives in one file, kept with the repo it serves, not here: **TOML** (since 1.2.0, like the other tools
@@ -221,6 +235,7 @@ on the shared library), or JSONC (comments allowed), chosen by the extension. Se
 'literal string', which needs no escaping:
 
 ```toml
+base = "base-config.toml"   # optional: settings shared with other tools
 source_root = 'C:\Users\me\OneDrive\Staging'
 repo_root = '..'
 log = '%LOCALAPPDATA%/doc-filer/doc-filer.log'
@@ -236,6 +251,7 @@ name = '{date}-{label}{part}'
 
 | Setting | What it is |
 |---|---|
+| `base` | TOML only, optional: a file of settings shared with other tools (above) |
 | `sourceRoot` | The staging folder, absolute |
 | `repoRoot` | The repo, relative to the config file |
 | `pandoc` | pandoc's executable, relative to the config file. Empty means `$env:DOC_FILER_PANDOC` if set, then the copy beside the exe, then `pandoc` on the PATH |

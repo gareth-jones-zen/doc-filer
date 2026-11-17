@@ -15,8 +15,25 @@ internal static class TomlConfig
 {
     public static bool IsToml(string path) => string.Equals(Path.GetExtension(path), ".toml", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>The TOML file as the JSON text the config binder reads.</summary>
-    public static string ToJson(string text, string source) => Node(PyToml.Read(text, source))!.ToJsonString();
+    /// <summary>
+    /// The TOML file, with the base file it names (1.3.0, <c>base = "base-config.toml"</c>): the JSON text the config
+    /// binder reads, and the variables to expand its paths with (the base's [paths], then the environment), or null
+    /// when it names no base. A base that's missing or can't be read is a config problem.
+    /// </summary>
+    public static (string Json, Func<string, string?>? Variables, string? BasePath) Read(string text, string source, Func<string, string?> env)
+    {
+        SettingsWithBase read;
+        try
+        {
+            read = BaseSettings.Read(text, source, env, FilerConfig.KnownKeys);
+        }
+        catch (FormatException error)
+        {
+            throw new InvalidDataException(error.Message, error);
+        }
+
+        return (Node(read.Raw)!.ToJsonString(), read.BasePath is null ? null : read.Env, read.BasePath);
+    }
 
     /// <summary>snake_case to camelCase: "check_every_seconds" is "checkEverySeconds". Other keys are left alone.</summary>
     internal static string Key(string key)

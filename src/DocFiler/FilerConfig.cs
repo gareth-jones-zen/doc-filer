@@ -86,17 +86,47 @@ public sealed class FilerConfig
     [JsonIgnore] public GitSettings? GitSettings { get; private set; }
     [JsonIgnore] public string? ResolvedLog { get; private set; }
 
+    /// <summary>The base file a TOML config named (1.3.0), or null.</summary>
+    [JsonIgnore] public string? BasePath { get; private set; }
+
+    /// <summary>With a base file: its [paths] as variables, then the environment, for the path settings that expand
+    /// %VARIABLES%. Null without one, which expands from the environment as before.</summary>
+    [JsonIgnore] internal Func<string, string?>? Variables { get; private set; }
+
+    /// <summary>
+    /// Every top-level key a TOML config takes, as written in TOML (snake_case). A base file's settings are used only
+    /// when they're one of these: see README.md, "Sharing settings with other tools".
+    /// </summary>
+    public static readonly string[] KnownKeys =
+    [
+        "source_root", "repo_root", "pandoc", "people", "person_convert_templates", "person_copy_templates", "convert",
+        "copy", "after_run", "git", "watch", "log", "hook", "archive", "self_test",
+    ];
+
     public static FilerConfig Load(string configPath)
     {
         var text = File.ReadAllText(configPath);
-        var json = TomlConfig.IsToml(configPath) ? TomlConfig.ToJson(text, configPath) : text;
+        string json;
+        Func<string, string?>? variables = null;
+        string? basePath = null;
+        if (TomlConfig.IsToml(configPath))
+        {
+            (json, variables, basePath) = TomlConfig.Read(text, configPath, Environment.GetEnvironmentVariable);
+        }
+        else
+        {
+            json = text;
+        }
+
         var config = Json.ReadConfig(json)
                      ?? throw new InvalidDataException($"Could not parse {configPath}");
 
+        config.BasePath = basePath;
+        config.Variables = variables;
         config.ConfigPath = Path.GetFullPath(configPath);
         config.ConfigDirectory = Path.GetDirectoryName(config.ConfigPath)!;
         config.ResolvedRepoRoot = Path.GetFullPath(Path.Combine(config.ConfigDirectory, config.RepoRoot));
-        config.ResolvedLog = string.IsNullOrWhiteSpace(config.Log) ? null : ExpandPath(config.Log, config.ConfigDirectory);
+        config.ResolvedLog = string.IsNullOrWhiteSpace(config.Log) ? null : ExpandPath(config.Log, config.ConfigDirectory, variables);
         // A config's own pandoc wins; then one named in DOC_FILER_PANDOC; then the copy that
         // ships with the tool, unpacked beside the exe; then pandoc on the PATH.
         var named = Environment.GetEnvironmentVariable("DOC_FILER_PANDOC");
@@ -110,10 +140,13 @@ public sealed class FilerConfig
     }
 
     /// <summary>A path setting: ~ is the home folder, %VARIABLES% are expanded, and a relative path is relative to
-    /// the config file's folder.</summary>
-    internal static string ExpandPath(string value, string configDirectory)
+    /// the config file's folder. With <paramref name="variables"/> (a base file's [paths], then the environment), a
+    /// %NAME% is looked up there; one it doesn't know is left as written, as Windows does.</summary>
+    internal static string ExpandPath(string value, string configDirectory, Func<string, string?>? variables = null)
     {
-        var expanded = Environment.ExpandEnvironmentVariables(value.Trim());
+        var expanded = variables is null
+            ? Environment.ExpandEnvironmentVariables(value.Trim())
+            : System.Text.RegularExpressions.Regex.Replace(value.Trim(), "%([^%]+)%", match => variables(match.Groups[1].Value) ?? match.Value);
         if (expanded == "~" || expanded.StartsWith("~/", StringComparison.Ordinal) || expanded.StartsWith("~\\", StringComparison.Ordinal))
         {
             expanded = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), expanded.Length > 2 ? expanded[2..] : "");
