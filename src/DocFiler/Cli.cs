@@ -26,6 +26,13 @@ public static class Cli
             return Autostart.Run(args[1..], Console.Out, Console.Error);
         }
 
+        // "--config <p> autostart ..." (1.2.1), the order the other tools take: the config goes to autostart's own
+        // --config, which `on` registers.
+        if (args.Length >= 3 && args[0] == "--config" && args[2] == "autostart")
+        {
+            return Autostart.Run([.. args[3..], "--config", args[1]], Console.Out, Console.Error);
+        }
+
         var dryRun = false;
         var selfTest = false;
         var dumpConfig = false;
