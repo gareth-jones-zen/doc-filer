@@ -31,6 +31,11 @@ public static class Filer
 
         if (hook && !dryRun)
         {
+            Problems.Report(config, newUnmatched, reportFailures ? result.FailedFiles : [], notify ?? WinBackground.Toast.Notify);
+        }
+
+        if (hook && !dryRun)
+        {
             RepoCommits.Run(config, result, notify ?? WinBackground.Toast.Notify);
         }
 

@@ -46,7 +46,7 @@ public sealed class HookTests
         var lines = log.Lines.Select(line => line[20..]).ToList();   // without the timestamp
         Assert.Equal(
         [
-            $"After-run hook: {string.Join(' ', config.AfterRun)}",
+            $"After-run hook: {string.Join(' ', config.AfterRunCommands[0])}",
             "  hook: first line",
             "  hook: second line",
             "  hook: a warning",

@@ -41,9 +41,27 @@ public sealed class FilerConfig
     /// A command run after any run that wrote something into the repo, failed a file, or
     /// (in watch mode) found a new file no rule matches. The first element is the program,
     /// the rest its arguments. It runs from the repo root and gets a JSON report on stdin.
+    /// Since 1.4.0 it can be a list of commands, each run in turn with the same report.
     /// See README.md, "The after-run hook".
     /// </summary>
-    public List<string> AfterRun { get; set; } = [];
+    public JsonNode? AfterRun { get; set; }
+
+    /// <summary>The after-run commands, each a program and its arguments (from <see cref="AfterRun"/>).</summary>
+    [JsonIgnore] public List<List<string>> AfterRunCommands { get; private set; } = [];
+
+    /// <summary>
+    /// Optional (1.4.0): true, and the tool notifies its own problems: a staging file no rule matches (once, in watch
+    /// mode) and a file it couldn't convert. Until 1.4.0 that was left to an after-run hook.
+    /// </summary>
+    public bool Notify { get; set; }
+
+    /// <summary>
+    /// Optional (1.4.0): a review queue (background-tools-lib's ReviewQueue: file, source, lock) where a staging file no
+    /// rule matches is raised, once, as an "unmatched" item, for whoever reads the queue to rename it or add a rule.
+    /// </summary>
+    public JsonNode? Review { get; set; }
+
+    [JsonIgnore] public ReviewQueue.ReviewSettings? ReviewSettings { get; private set; }
 
     /// <summary>
     /// Optional: commit what each run files into the repo (with --hook, and always in watch mode), only those files,
@@ -100,7 +118,7 @@ public sealed class FilerConfig
     public static readonly string[] KnownKeys =
     [
         "source_root", "repo_root", "pandoc", "people", "person_convert_templates", "person_copy_templates", "convert",
-        "copy", "after_run", "git", "watch", "log", "hook", "archive", "self_test",
+        "copy", "after_run", "git", "watch", "log", "hook", "archive", "self_test", "notify", "review",
     ];
 
     public static FilerConfig Load(string configPath)
@@ -231,6 +249,43 @@ public sealed class FilerConfig
         foreach (var rule in AllConvertRules.Where(rule => string.IsNullOrWhiteSpace(rule.Match)))
         {
             problems.Add($"convert rule for '{rule.From}' has no match pattern.");
+        }
+
+        AfterRunCommands = [];
+        if (AfterRun is JsonArray commands)
+        {
+            if (commands.All(c => c is JsonValue v && v.GetValueKind() == System.Text.Json.JsonValueKind.String))
+            {
+                if (commands.Count > 0)
+                    AfterRunCommands.Add([.. commands.Select(c => c!.GetValue<string>())]);
+            }
+            else if (commands.All(c => c is JsonArray a && a.Count > 0 && a.All(x => x is JsonValue v && v.GetValueKind() == System.Text.Json.JsonValueKind.String)))
+            {
+                AfterRunCommands.AddRange(commands.Select(c => c!.AsArray().Select(x => x!.GetValue<string>()).ToList()));
+            }
+            else
+            {
+                problems.Add("afterRun should be a command (a list of text) or a list of commands.");
+            }
+        }
+        else if (AfterRun is not null)
+        {
+            problems.Add("afterRun should be a command (a list of text) or a list of commands.");
+        }
+
+        if (Review is not null)
+        {
+            try
+            {
+                var table = Review is JsonObject o
+                    ? o.ToDictionary(kv => kv.Key, kv => (object)(kv.Value is JsonValue v && v.GetValueKind() == System.Text.Json.JsonValueKind.String ? v.GetValue<string>() : kv.Value?.ToJsonString() ?? ""))
+                    : null;
+                ReviewSettings = ReviewQueue.ReviewSettings.Read(table, ConfigPath, path => ExpandPath(path, ConfigDirectory, Variables));
+            }
+            catch (FormatException exception)
+            {
+                problems.Add(exception.Message);
+            }
         }
 
         if (Git is not null)

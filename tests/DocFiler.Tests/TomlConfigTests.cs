@@ -106,7 +106,7 @@ public sealed class TomlConfigTests : IDisposable
         var b = FilerConfig.Load(toml);
         Assert.Equal(a.SourceRoot, b.SourceRoot);
         Assert.Equal(a.ResolvedRepoRoot, b.ResolvedRepoRoot);
-        Assert.Equal(a.AfterRun, b.AfterRun);
+        Assert.Equal(a.AfterRunCommands, b.AfterRunCommands);
         Assert.Equal((a.Watch.CheckEverySeconds, a.Watch.SettleSeconds), (b.Watch.CheckEverySeconds, b.Watch.SettleSeconds));
         Assert.Equal(a.AllConvertRules.Select(r => (r.From, r.Match, r.To, r.Converter, r.InputFormat, r.LuaFilter, r.Prettify)),
             b.AllConvertRules.Select(r => (r.From, r.Match, r.To, r.Converter, r.InputFormat, r.LuaFilter, r.Prettify)));

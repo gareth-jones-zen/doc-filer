@@ -168,9 +168,23 @@ new unmatched file. It gets a JSON report on stdin:
 }
 ```
 
-`written` is relative to the repo root. Its output goes to the log, prefixed `hook:`. A
-typical hook notifies someone about `failed` and `unmatched`, and does whatever else new files
-need.
+`written` is relative to the repo root, and lists a file only when its content changed. Its output goes to the log,
+prefixed `hook:`.
+
+**Several commands** (1.4.0): give a list of them, and each gets the same report in turn (one failing doesn't stop the
+next):
+
+```toml
+after_run = [
+  ['meeting-summaries-background.exe', '--config', 'meeting-summaries.toml', 'hook'],
+  ['meeting-preps-background.exe', '--config', 'meeting-preps.toml', 'hook'],
+]
+```
+
+**The tool raises its own problems** (1.4.0), so a hook needn't: `notify = true` notifies a new staging file no rule
+matches (once) and a file it couldn't convert (in watch mode, once its retries are used up); a `[review]` section
+(background-tools-lib's ReviewQueue: `file`, `source`, `lock`) also raises the unmatched files as an `unmatched` item,
+with `files` and `title`, for whoever reads the queue to rename them or add a rule.
 
 **Anything outside ASCII is written as `\uXXXX`** (`"Zo\u00EB"`, for "Zoë"), so the hook's stdin is pure
 ASCII whatever the console's code page. Any JSON reader turns it back.
@@ -258,7 +272,8 @@ name = '{date}-{label}{part}'
 | `people` | `{ "initials", "destination" }` for each person whose files are named by initials. Each is expanded through the person templates |
 | `personConvertTemplates`, `personCopyTemplates` | Rules generated once per person, with `{initials}` and `{destination}` |
 | `convert`, `copy` | Everything else |
-| `afterRun` | The hook command, above |
+| `afterRun` | The hook command, or a list of them, above |
+| `notify`, `review` | The tool raising its own problems (1.4.0), above |
 | `git` | Commit what's filed and archived (above): `repo`, `commit`, `push`, `trailers` |
 | `watch` | `checkEverySeconds`, `settleSeconds` |
 | `log` | The log file for every run and the watcher (`autostart on` uses it); relative to the config, `~` and `%VARIABLES%` expanded. `--log` wins |

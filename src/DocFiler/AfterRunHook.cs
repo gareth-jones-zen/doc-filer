@@ -15,7 +15,7 @@ public static class AfterRunHook
     public static void Run(FilerConfig config, ProcessResult result, IReadOnlyList<string> unmatched,
         bool reportFailures = true)
     {
-        if (config.AfterRun.Count == 0)
+        if (config.AfterRunCommands.Count == 0)
         {
             return;
         }
@@ -29,7 +29,15 @@ public static class AfterRunHook
             Unmatched: unmatched,
             Summary: result.ToString()));
 
-        Log.Info($"After-run hook: {string.Join(' ', config.AfterRun)}");
+        foreach (var command in config.AfterRunCommands)
+        {
+            RunOne(config, command, report);
+        }
+    }
+
+    private static void RunOne(FilerConfig config, List<string> command, string report)
+    {
+        Log.Info($"After-run hook: {string.Join(' ', command)}");
 
         try
         {
@@ -37,7 +45,7 @@ public static class AfterRunHook
             // hook killed with everything it started if it runs too long. It writes stdin in text mode (each LF as
             // CRLF), and the report is already CRLF (an indented JSON writer on Windows), so it goes in as LF to
             // arrive byte for byte as before.
-            var done = Shell.Run(config.AfterRun[0], config.AfterRun.Skip(1), Timeout,
+            var done = Shell.Run(command[0], command.Skip(1), Timeout,
                 stdin: report.Replace("\r\n", "\n"), workingDirectory: config.ResolvedRepoRoot, utf8: true);
 
             foreach (var line in (done.StandardOutput + done.StandardError)
