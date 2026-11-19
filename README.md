@@ -195,7 +195,7 @@ If the repo is a git repository, a `git` section commits what each run files int
 
 ```jsonc
 "git": {
-  "repo": "..",                                    // the repository, relative to the config file
+  "repo": "..",                                    // the repository's top, relative to the config file
   "push": true,                                    // optional (default false): push after each commit
   "trailers": ["Co-Authored-By: Name <name@example.com>"]   // optional: the message's last lines
 }
@@ -222,6 +222,13 @@ sees the files before they're committed.
 - **A commit that fails** (a hook in the repository refusing it, say) is logged and notified: "Archived, not committed"
   or "Filed, not committed". The files stay where they were filed. **A push that fails** is only logged; the commit
   stays. `"commit": false` keeps the section but commits nothing; with no section, nothing is committed.
+- **git not set up is quiet, not a failure**: with a `git` section but no git installed, or a `repo` that isn't a git
+  repository, or a folder *inside* one rather than its top (nothing is committed into a repository the folder only
+  sits in), the files are filed and archived as usual, one line says "git: not committing: ..." (once a process: once
+  a logon for the watcher), and nothing is notified, whatever `notify` says. After `git init`, run
+  `autostart restart` for the watcher to start committing.
+- **No upstream, no push**: with `push` on and a branch with no upstream (no remote), the commit stays and no push is
+  tried; one log line says so.
 - It's [background-tools-lib](https://github.com/gareth-jones-zen/background-tools-lib)'s `RepoCommit`: git is run from
   the PATH, every path is literal, another git holding the index is waited for briefly, and the log has counts and the
   commit id, never contents.

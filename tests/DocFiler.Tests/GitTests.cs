@@ -153,6 +153,41 @@ public sealed class GitTests : IDisposable
         Assert.Empty(repo.Commits());
     }
 
+    [Fact]
+    public void A_folder_that_isnt_a_repository_files_quietly_and_notifies_nothing()
+    {
+        var plain = Path.Combine(root, "plain-ea");
+        Directory.CreateDirectory(Path.Combine(plain, "meetings", "preps", "archive", "2026-10"));
+        File.WriteAllText(Path.Combine(plain, "a.md"), "a\n");
+        File.WriteAllText(Path.Combine(plain, "meetings", "preps", "archive", "2026-10", "2026-10-01-a.md"), "a\n");
+        var config = EaConfig(plain);
+        var result = new ProcessResult();
+        result.Written.Add("a.md");
+        result.Moved.Add(new MovedFile("meetings/preps/2026-10-01-a.md", "meetings/preps/archive/2026-10/2026-10-01-a.md"));
+        using var log = new LogCapture(root);
+        for (var run = 0; run < 3; run++)
+            RepoCommits.Run(config, result, Notify);   // a watcher's runs: said once
+        Assert.Empty(notes);
+        Assert.False(Directory.Exists(Path.Combine(plain, ".git")));
+        Assert.Single(log.Lines, l => l.Contains($"git: not committing: {plain} isn't a git repository.", StringComparison.Ordinal));
+        Assert.DoesNotContain(log.Lines, l => l.Contains("commit failed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_folder_inside_another_repository_isnt_committed_into_it()
+    {
+        var outer = new GitRepo(Path.Combine(root, "outer"));
+        var inner = outer.File("assistant");
+        Directory.CreateDirectory(inner);
+        File.WriteAllText(Path.Combine(inner, "a.md"), "a\n");
+        var config = EaConfig(inner);
+        var result = new ProcessResult();
+        result.Written.Add("a.md");
+        RepoCommits.Run(config, result, Notify);
+        Assert.Empty(outer.Commits());
+        Assert.Empty(notes);
+    }
+
     [Theory]
     [InlineData("""{ "repo": "..", "repository": "x" }""", "repository under \"git\" in ")]
     [InlineData("""{ "push": true }""", "needs repo")]

@@ -15,6 +15,8 @@ namespace DocFiler;
 /// <item>Each message ends with where it came from and the config's trailers. A commit that fails is logged and
 /// notified ("Archived, not committed", "Filed, not committed"); the files stay where they were filed. A push that
 /// fails is only logged.</item>
+/// <item><b>git not set up</b> (not installed, the repo folder not a repository, or a folder inside one rather than its
+/// top) commits nothing and notifies nothing: one log line a process.</item>
 /// </list>
 /// </summary>
 public static class RepoCommits
@@ -49,7 +51,14 @@ public static class RepoCommits
         }
 
         var committer = git.Open(Log.Info);
-        var see = $"See {(Log.FilePath is { } file ? Path.GetFileName(file) : "the log")}.";
+        if (committer.Skipped is not null)
+        {
+            // git isn't set up here (not installed, not a repository, or a folder inside one): the files are filed, and
+            // the library has said so in the log, once a process. Nothing to notify, whatever notify says.
+            return;
+        }
+
+        var see =$"See {(Log.FilePath is { } file ? Path.GetFileName(file) : "the log")}.";
         string settings;
         try
         {
