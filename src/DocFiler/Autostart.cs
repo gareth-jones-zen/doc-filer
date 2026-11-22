@@ -92,11 +92,24 @@ public static partial class Autostart
         StopOtherWatchers(config);
 
         var (exe, taskArgs) = Command(ProgramDir, config, log);
-        task.Enable(exe, taskArgs, Path.GetDirectoryName(config));
+        task.Enable(exe, taskArgs, Path.GetDirectoryName(config), Schedule(config).ToTaskSchedule(TaskKind.Watcher));
         output.WriteLine($"Autostart is on: '{TaskName}' runs at every logon, and has started now.");
         output.WriteLine($"  config  {config}");
         output.WriteLine($"  log     {log}");
         return 0;
+    }
+
+    /// <summary>The config's [schedule] (1.6.0), or the default watcher's if it doesn't load.</summary>
+    private static ScheduleSettings Schedule(string? config)
+    {
+        try
+        {
+            return config is null ? new ScheduleSettings() : FilerConfig.Load(config).ResolvedSchedule;
+        }
+        catch (Exception)
+        {
+            return new ScheduleSettings();
+        }
     }
 
     /// <summary>The config's log setting, if it loads and has one.</summary>
@@ -173,6 +186,11 @@ public static partial class Autostart
         output.WriteLine($"  last run     {status.GetValueOrDefault("last_run", "")}");
         output.WriteLine($"  last result  {DescribeResult(status.GetValueOrDefault("last_result", ""))}");
         output.WriteLine($"  command      {command}");
+        if (ScheduleDrift.Advice(ScheduleDrift.Check(status, Schedule(ConfigIn(command)).Fingerprint(TaskKind.Watcher)), "doc-filer") is { } advice)
+        {
+            output.WriteLine($"  {advice}");
+        }
+
         return 0;
     }
 

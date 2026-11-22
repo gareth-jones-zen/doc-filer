@@ -107,6 +107,13 @@ public sealed class Watcher(string configPath)
                     }
                 }
 
+                // [schedule] hours, days and end_date (1.6.0; by default always): outside them nothing is filed. What
+                // arrived meanwhile is caught once they open again, as a change to the staging folders.
+                if (!config.ResolvedSchedule.IsActive(Now()))
+                {
+                    continue;
+                }
+
                 if (config.Archive.Count > 0 && Now().Date != ranOn)
                 {
                     ranOn = Now().Date;

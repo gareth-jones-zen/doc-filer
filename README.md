@@ -102,6 +102,11 @@ to remember to run it.
   running and exits with `4`.
 - **One run at a time per config.** A one-off run waits for a watch run to finish, and the
   other way round. Both locks are named mutexes, which Windows releases if the process dies.
+- **`[schedule]` (1.6.0), the shared scheduling settings** from background-tools-lib (its README, "[schedule]: the shared
+  scheduling settings"), the same keys in every tool. doc-filer is a watcher started at logon, so only `hours`, `days`
+  and `end_date` apply: outside them nothing is filed, and what arrived meanwhile is filed once they open. **Default:
+  always.** `every_minutes` is refused: it checks the folders in seconds, `[watch] check_every_seconds`, which stays
+  in `[watch]` with `settle_seconds`. `autostart status` says if the registered task no longer matches.
 
 ### Starting it at logon: `autostart`
 

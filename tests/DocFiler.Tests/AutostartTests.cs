@@ -137,13 +137,26 @@ public sealed class AutostartTests : IDisposable
             "  state        Ready (the watcher is not running)\n" +
             "  last run     11/13/2026 09:00:00\n" +
             "  last result  exit 4 (another watcher was already running)\n" +
-            $"  command      {task.Command}\n",
+            $"  command      {task.Command}\n" +
+            "  registered before its schedule was recorded: run `doc-filer autostart on` to record it\n",
             Run("status").Out);
 
         string? asked = null;
         Autostart.WatcherRunning = config => { asked = config; return true; };
         Assert.Contains("  state        Ready\n", Run().Out);   // status is the default
         Assert.Equal(@"C:\cfg\doc-filer.json", asked);
+    }
+
+    [Fact]
+    public void On_records_the_schedule_and_status_spots_a_task_that_no_longer_matches()
+    {
+        Assert.Equal(0, Run("on", "--config", box.ConfigPath).Code);
+        Assert.Equal("v1 watcher logon=yes", task.Fingerprint);
+        task.Exists = true;
+        task.Command = $"C:\\doc-filer-background.exe --watch --config {box.ConfigPath} --log C:\\l.log";
+        Assert.DoesNotContain("autostart on`", Run("status").Out);
+        task.Fingerprint = "v1 job every=15 daily=- logon=yes unlock=0";
+        Assert.Contains("settings changed since this task was registered: run `doc-filer autostart on`", Run("status").Out);
     }
 
     [Theory]
@@ -219,11 +232,19 @@ public sealed class AutostartTests : IDisposable
         public IReadOnlyList<string>? Args { get; private set; }
         public string? WorkingDir { get; private set; }
 
+        public string? Fingerprint { get; set; }
+
         public string Enable(string exe, IReadOnlyList<string> args, string? workingDir)
         {
             Calls.Add("enable");
             (Exe, Args, WorkingDir) = (exe, args, workingDir);
             return exe;
+        }
+
+        public string Enable(string exe, IReadOnlyList<string> args, string? workingDir, TaskSchedule schedule)
+        {
+            Fingerprint = schedule.Fingerprint;
+            return Enable(exe, args, workingDir);
         }
 
         public bool Disable()
@@ -251,6 +272,7 @@ public sealed class AutostartTests : IDisposable
                 ? new Dictionary<string, string>
                 {
                     ["state"] = State, ["command"] = Command, ["last_run"] = "11/13/2026 09:00:00", ["last_result"] = Result,
+                    ["description"] = Fingerprint is null ? Description : ScheduleDrift.WithFingerprint(Description, Fingerprint),
                 }
                 : null;
         }

@@ -73,6 +73,15 @@ public sealed class FilerConfig
     public WatchSettings Watch { get; set; } = new();
 
     /// <summary>
+    /// Optional (1.6.0): [schedule], background-tools-lib's shared scheduling settings, the same keys in every tool. doc-filer
+    /// is a watcher, so the task starts it at logon; hours, days and end_date limit when it files (default: always).
+    /// every_minutes doesn't apply: it checks the staging folders in seconds, [watch] check_every_seconds.
+    /// </summary>
+    public JsonNode? Schedule { get; set; }
+
+    [JsonIgnore] public WinBackground.ScheduleSettings ResolvedSchedule { get; private set; } = new();
+
+    /// <summary>
     /// Optional (1.2.0): the log file, for every run and for the watcher (autostart on uses it). Relative to the config
     /// file; ~ and %VARIABLES% are expanded. --log, where given, wins.
     /// </summary>
@@ -118,8 +127,60 @@ public sealed class FilerConfig
     public static readonly string[] KnownKeys =
     [
         "source_root", "repo_root", "pandoc", "people", "person_convert_templates", "person_copy_templates", "convert",
-        "copy", "after_run", "git", "watch", "log", "hook", "archive", "self_test", "notify", "review",
+        "copy", "after_run", "git", "watch", "log", "hook", "archive", "self_test", "notify", "review", "schedule",
     ];
+
+    /// <summary>[schedule] as the shared ScheduleSettings (a watcher's). A TOML config's keys arrive camelCased (TomlConfig.Key),
+    /// so they're put back to snake_case for the library, which names them as written.</summary>
+    internal static WinBackground.ScheduleSettings ReadSchedule(JsonNode? node, string configPath)
+    {
+        var where = $"[schedule] in {configPath}";
+        if (node is null)
+            return new WinBackground.ScheduleSettings();
+        if (node is not JsonObject obj)
+            throw new InvalidDataException($"{where} should be a table of settings.");
+        var table = new Tomlyn.Model.TomlTable();
+        foreach (var (key, value) in obj)
+            table[Snake(key)] = Toml(value, where)!;
+        WinBackground.ScheduleSettings schedule;
+        try
+        {
+            schedule = WinBackground.ScheduleSettings.Parse(table, new WinBackground.ScheduleSettings(), WinBackground.TaskKind.Watcher, where);
+        }
+        catch (FormatException error)
+        {
+            throw new InvalidDataException(error.Message, error);
+        }
+        if (schedule.EveryMinutes is not null)
+            throw new InvalidDataException($"{where}: every_minutes doesn't apply to doc-filer, which checks its staging folders in seconds: "
+                                           + "set [watch] check_every_seconds instead.");
+        return schedule;
+    }
+
+    private static string Snake(string key) =>
+        string.Concat(key.Select((c, i) => char.IsUpper(c) ? (i > 0 ? "_" : "") + char.ToLowerInvariant(c) : c.ToString()));
+
+    private static object? Toml(JsonNode? value, string where)
+    {
+        switch (value)
+        {
+            case null:
+                return null;
+            case JsonArray array:
+                var list = new Tomlyn.Model.TomlArray();
+                foreach (var item in array)
+                    list.Add(Toml(item, where));
+                return list;
+            case JsonValue v when v.TryGetValue<bool>(out var b):
+                return b;
+            case JsonValue v when v.TryGetValue<long>(out var l):
+                return l;
+            case JsonValue v when v.TryGetValue<string>(out var s):
+                return s;
+            default:
+                throw new InvalidDataException($"{where}: {value.ToJsonString()} isn't a setting it understands.");
+        }
+    }
 
     public static FilerConfig Load(string configPath)
     {
@@ -154,6 +215,7 @@ public sealed class FilerConfig
 
         config.ExpandPersonTemplates();
         config.Validate();
+        config.ResolvedSchedule = ReadSchedule(config.Schedule, config.ConfigPath);
         return config;
     }
 
