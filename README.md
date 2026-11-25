@@ -252,6 +252,35 @@ Several tools on the shared library can keep common settings in one file, named 
 - A base that's missing or can't be read is a config problem, reported as any other. The loader is
   [background-tools-lib](https://github.com/gareth-jones-zen/background-tools-lib)'s `PyCompat.BaseSettings`.
 
+## The shared activity journal (1.7.0)
+
+With **`journal_file`** set (top level, or in the base file so every tool shares it: by convention
+`journal_file = "%EA_LOCAL%/journal.jsonl"`), each file doc-filer files or archives is also **one JSON line in a
+journal shared by the tools**, written through background-tools-lib's
+[ActivityJournal](https://github.com/gareth-jones-zen/background-tools-lib#activityjournal), for a "while you were
+away" view. Without it, nothing is written (the default).
+
+```json
+{"id":"5be01c9a2f47","when":"2026-11-25T09:14:03.120+00:00","tool":"doc-filer","what":"file","by":"auto","subject":"meetings/series/team-sync/2026-11-25.md","why":"new","sensitivity":"private"}
+```
+
+| `what` | When | `rule`, `why` |
+|---|---|---|
+| `file` | a copy rule wrote a file into the repo: new, or over an older copy because the staging file changed | `why`: `new`, or `replaced the older copy: the staging file changed` |
+| `archive` | an archive rule moved a dated file into its archive | `rule`: the archive rule's `folder`; `why`: `dated more than <keepDays> days ago` |
+
+- **Only what really happened**: never a dry run. `by` is `auto` for the watcher's runs, `hand` for a run from the
+  command line. Converting into staging, the hook, the git commit and `pdf` write no line.
+- **`subject` is the file's path in the repo** (an archive move's `from -> to`), as the log shows it. A path can name a
+  person or a meeting, so lines are `"sensitivity": "private"` by default (a screen shown to others hides the subject).
+  A copy rule, person copy template or archive rule can set **`sensitivity`**: `normal`, `private` or `restricted`
+  (the whole line hidden: reviews, anything about a person's performance, health or pay). An unknown value is a config
+  problem.
+- **No `undo`**: the next run would file or archive it again while the staging file and the rules are as they are.
+  To take a file back out, remove it from staging too (or change the rule).
+- **Writing it never fails the run**: a problem is logged (`WARNING: journal: ...`) and the run carries on. Reading the
+  journal back (since a time, by tool) is the library's `Journal.Read`; the file's format is in its README.
+
 ## The config
 
 All behaviour lives in one file, kept with the repo it serves, not here: **TOML** (since 1.2.0, like the other tools
@@ -290,6 +319,7 @@ name = '{date}-{label}{part}'
 | `watch` | `checkEverySeconds`, `settleSeconds` |
 | `log` | The log file for every run and the watcher (`autostart on` uses it); relative to the config, `~` and `%VARIABLES%` expanded. `--log` wins |
 | `hook` | `true`: a one-off run runs the hook and the git commit too, as `--hook` does, so a run by hand leaves the repo as the watcher would |
+| `journalFile` | The shared activity journal (1.7.0, above), usually from the base; relative to the config, `~` and `%VARIABLES%` expanded |
 | `archive` | Folders whose old dated files move into an archive (above) |
 | `selfTest` | Routing checks, below |
 
@@ -323,7 +353,7 @@ Per-rule settings, all optional:
 
 **Copy rules** copy files with matching `extensions` from `from` (relative to `sourceRoot`)
 to `to` (relative to the repo). `recurse` keeps subfolders, which is how per-person and
-per-series folders come through.
+per-series folders come through. `sensitivity` (1.7.0) is the journal's for what the rule files (above).
 
 ## Self-test
 

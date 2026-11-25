@@ -39,7 +39,7 @@ public sealed class Watcher(string configPath)
     internal Func<DateTime> Now { get; init; } = () => DateTime.Now;
     internal Action<TimeSpan> Sleep { get; init; } = Thread.Sleep;
     internal Func<FilerConfig, IReadOnlyList<string>, bool, int> RunFiler { get; init; } =
-        (config, fresh, reportFailures) => Filer.Run(config, dryRun: false, hook: true, fresh, LockWait, reportFailures);
+        (config, fresh, reportFailures) => Filer.Run(config, dryRun: false, hook: true, fresh, LockWait, reportFailures, by: ActivityJournal.By.Auto);
     internal string StateFolder { get; init; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "doc-filer");
 

@@ -13,6 +13,9 @@ public sealed class ProcessResult
     /// <summary>Files written into the repo, relative to its root, with forward slashes.</summary>
     public List<string> Written { get; } = [];
 
+    /// <summary>Each file in <see cref="Written"/>: whether it replaced an older copy, and its rule's journal sensitivity.</summary>
+    public List<FiledFile> Filed { get; } = [];
+
     /// <summary>Staging files that failed to convert.</summary>
     public List<string> FailedFiles { get; } = [];
 
@@ -27,6 +30,10 @@ public sealed class ProcessResult
             : $"{Converted} converted, {Copied} copied, {Skipped} unchanged, {Failed} failed" +
               (Moved.Count > 0 ? $", {Moved.Count} archived" : "");
 }
+
+/// <summary>A file copied into the repo (relative to its root), whether it replaced an older copy, and the journal
+/// sensitivity of the rule that copied it (1.7.0).</summary>
+public sealed record FiledFile(string Path, bool Replaced, string Sensitivity);
 
 /// <summary>An archive move, relative to the repo root, and which archive rule (its index) made it.</summary>
 public sealed record MovedFile(string From, string To, int Rule = 0);
@@ -274,10 +281,13 @@ public sealed class DirectoryProcessor(FilerConfig config, bool dryRun)
             }
 
             Directory.CreateDirectory(Path.GetDirectoryName(destinationFile)!);
+            var replaced = File.Exists(destinationFile);
             Log.Info($"Copying {sourceFile} to {destinationFile}");
             File.Copy(sourceFile, destinationFile, true);
             _result.Copied++;
-            _result.Written.Add(Path.GetRelativePath(config.ResolvedRepoRoot, destinationFile).Replace('\\', '/'));
+            var written = Path.GetRelativePath(config.ResolvedRepoRoot, destinationFile).Replace('\\', '/');
+            _result.Written.Add(written);
+            _result.Filed.Add(new FiledFile(written, replaced, rule.Sensitivity));
         }
     }
 

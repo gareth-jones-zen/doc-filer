@@ -94,6 +94,13 @@ public sealed class FilerConfig
     public bool Hook { get; set; }
 
     /// <summary>
+    /// Optional (1.7.0): the shared activity journal (background-tools-lib's ActivityJournal), usually from the base
+    /// file (journal_file = "%EA_LOCAL%/journal.jsonl"): one JSON line for each file filed or archived, for a "while you
+    /// were away" view. Relative to the config file; ~ and %VARIABLES% are expanded. Unset (the default) writes none.
+    /// </summary>
+    public string JournalFile { get; set; } = "";
+
+    /// <summary>
     /// Folders in the repo whose dated files move into an archive once they're old enough, so the
     /// folder holds only what's current. Runs on every run, and once a day in watch mode.
     /// </summary>
@@ -112,6 +119,7 @@ public sealed class FilerConfig
     [JsonIgnore] public List<CopyRule> AllCopyRules { get; private set; } = [];
     [JsonIgnore] public GitSettings? GitSettings { get; private set; }
     [JsonIgnore] public string? ResolvedLog { get; private set; }
+    [JsonIgnore] public string? ResolvedJournal { get; private set; }
 
     /// <summary>The base file a TOML config named (1.3.0), or null.</summary>
     [JsonIgnore] public string? BasePath { get; private set; }
@@ -128,6 +136,7 @@ public sealed class FilerConfig
     [
         "source_root", "repo_root", "pandoc", "people", "person_convert_templates", "person_copy_templates", "convert",
         "copy", "after_run", "git", "watch", "log", "hook", "archive", "self_test", "notify", "review", "schedule",
+        "journal_file",
     ];
 
     /// <summary>[schedule] as the shared ScheduleSettings (a watcher's). A TOML config's keys arrive camelCased (TomlConfig.Key),
@@ -206,6 +215,7 @@ public sealed class FilerConfig
         config.ConfigDirectory = Path.GetDirectoryName(config.ConfigPath)!;
         config.ResolvedRepoRoot = Path.GetFullPath(Path.Combine(config.ConfigDirectory, config.RepoRoot));
         config.ResolvedLog = string.IsNullOrWhiteSpace(config.Log) ? null : ExpandPath(config.Log, config.ConfigDirectory, variables);
+        config.ResolvedJournal = string.IsNullOrWhiteSpace(config.JournalFile) ? null : ExpandPath(config.JournalFile, config.ConfigDirectory, variables);
         // A config's own pandoc wins; then one named in DOC_FILER_PANDOC; then the copy that
         // ships with the tool, unpacked beside the exe; then pandoc on the PATH.
         var named = Environment.GetEnvironmentVariable("DOC_FILER_PANDOC");
@@ -392,6 +402,15 @@ public sealed class FilerConfig
             }
         }
 
+        foreach (var (where, sensitivity) in AllCopyRules.Select(rule => ($"copy rule for '{rule.From}'", rule.Sensitivity))
+                     .Concat(Archive.Select(rule => ($"archive rule for '{rule.Folder}'", rule.Sensitivity))))
+        {
+            if (!ActivityJournal.Sensitivity.All.Contains(sensitivity))
+            {
+                problems.Add($"{where}: sensitivity is one of {string.Join(", ", ActivityJournal.Sensitivity.All)}, not '{sensitivity}'.");
+            }
+        }
+
         foreach (var filter in AllConvertRules.Select(rule => rule.LuaFilter)
                      .Where(filter => !string.IsNullOrWhiteSpace(filter)).Distinct())
         {
@@ -517,6 +536,13 @@ public sealed class CopyRule
     /// <summary>Include subdirectories, preserving their structure at the destination.</summary>
     public bool Recurse { get; set; }
 
+    /// <summary>
+    /// The journal's sensitivity for what this rule files (1.7.0): "private" (the default: a screen shown to others hides
+    /// the file's path, which can name a person or a meeting), "normal" or "restricted" (hides the whole line: reviews,
+    /// anything about a person's performance, health or pay).
+    /// </summary>
+    public string Sensitivity { get; set; } = ActivityJournal.Sensitivity.Private;
+
     public CopyRule Clone()
     {
         var clone = (CopyRule)MemberwiseClone();
@@ -551,6 +577,9 @@ public sealed class ArchiveRule
     /// means "Archive {count} file(s) from {folder} older than {keepDays} days".
     /// </summary>
     public string CommitMessage { get; set; } = "";
+
+    /// <summary>The journal's sensitivity for what this rule archives (1.7.0), as a copy rule's: "private" by default.</summary>
+    public string Sensitivity { get; set; } = ActivityJournal.Sensitivity.Private;
 }
 
 public sealed class WatchSettings
